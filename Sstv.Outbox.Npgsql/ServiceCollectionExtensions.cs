@@ -34,7 +34,6 @@ public static class ServiceCollectionExtensions
         where TOutboxItemHandler : class, IOutboxItemHandler<TOutboxItem>
     {
         ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(npgsqlDataSource);
 
         var type = typeof(TOutboxItem);
         if (_registeredTypes.Contains(type))
@@ -59,6 +58,7 @@ public static class ServiceCollectionExtensions
 
         services.Add(ServiceDescriptor.Describe(typeof(IOutboxItemHandler<TOutboxItem>), typeof(TOutboxItemHandler), handlerLifetime));
         services.TryAddTransient<IOutboxItemHandler<TOutboxItem>, TOutboxItemHandler>();
+        services.TryAddSingleton<IOutboxRepository<TOutboxItem>, OutboxItemRepository<TOutboxItem>>();
         services.TryAddKeyedTransient<IOutboxWorker, StrictOrderingOutboxWorker>(NpgsqlWorkerTypes.STRICT_ORDERING);
         services.TryAddKeyedTransient<IOutboxWorker, CompetingOutboxWorker>(NpgsqlWorkerTypes.COMPETING);
         services.TryAddSingleton(TimeProvider.System);
@@ -86,7 +86,6 @@ public static class ServiceCollectionExtensions
         where TOutboxItemHandler : class, IOutboxItemBatchHandler<TOutboxItem>
     {
         ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(npgsqlDataSource);
 
         var type = typeof(TOutboxItem);
         if (_registeredTypes.Contains(type))
@@ -110,6 +109,7 @@ public static class ServiceCollectionExtensions
             .ValidateOnStart();
 
         services.TryAdd(ServiceDescriptor.Describe(typeof(IOutboxItemBatchHandler<TOutboxItem>), typeof(TOutboxItemHandler), handlerLifetime));
+        services.TryAddSingleton<IOutboxRepository<TOutboxItem>, OutboxItemRepository<TOutboxItem>>();
         services.TryAddKeyedTransient<IOutboxWorker, BatchCompetingOutboxWorker>(NpgsqlWorkerTypes.BATCH_COMPETING);
         services.TryAddSingleton(TimeProvider.System);
         services.AddHostedService<OutboxBackgroundService<TOutboxItem>>();

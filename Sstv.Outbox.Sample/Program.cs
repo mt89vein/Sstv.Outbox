@@ -1,4 +1,5 @@
 using Dapper;
+using Microsoft.OpenApi.Models;
 using Npgsql;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
@@ -43,12 +44,21 @@ public class Program
         builder.Services.AddOutboxItem<StrictOutboxItem, StrictOutboxItemHandler>();
 
         builder.Services.AddEndpointsApiExplorer();
+        builder.Services.AddSwaggerGen(options =>
+        {
+            options.SwaggerDoc("v1", new OpenApiInfo
+            {
+                Description = "Outbox maintenance Api",
+                Title = "Outbox maintenance Api",
+                Version = "v1",
+            });
+        });
 
         var app = builder.Build();
 
         app.MapGet("/push", async (CancellationToken ct = default) =>
         {
-            var cmd = datasource.CreateCommand(
+            await using var cmd = datasource.CreateCommand(
                 """
                 INSERT INTO my_outbox_items (id, created_at, status, retry_count, retry_after, headers, data)
                 SELECT * FROM unnest(@id, @created_at, @status, @retry_count, @retry_after, @headers, @data);
@@ -82,7 +92,7 @@ public class Program
 
         app.MapGet("/push2", async (CancellationToken ct = default) =>
         {
-            var cmd = datasource.CreateCommand(
+            await using var cmd = datasource.CreateCommand(
                 """
                 INSERT INTO one_more_outbox_items (id, created_at, status, retry_count, retry_after, headers, data)
                 SELECT * FROM unnest(@id, @created_at, @status, @retry_count, @retry_after, @headers, @data);
@@ -116,7 +126,7 @@ public class Program
 
         app.MapGet("/push3", async (CancellationToken ct = default) =>
         {
-            var cmd = datasource.CreateCommand(
+            await using var cmd = datasource.CreateCommand(
                 """
                 INSERT INTO strict_outbox_items (id, created_at, status, retry_count, retry_after, headers, data)
                 SELECT * FROM unnest(@id, @created_at, @status, @retry_count, @retry_after, @headers, @data);
@@ -146,6 +156,17 @@ public class Program
             await cmd.ExecuteNonQueryAsync(ct);
 
             return Results.Ok();
+        });
+
+        app.MapOutboxMaintenanceEndpoints<StrictOutboxItem>();
+        app.MapOutboxMaintenanceEndpoints<MyOutboxItem>();
+        app.MapOutboxMaintenanceEndpoints<OneMoreOutboxItem>();
+
+        app.UseSwagger();
+
+        app.UseSwaggerUI(c =>
+        {
+            c.SwaggerEndpoint("/swagger/v1/swagger.json", "Outbox maintenance Api v1");
         });
 
         app.MapPrometheusScrapingEndpoint();

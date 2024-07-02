@@ -68,7 +68,7 @@ public sealed class OutboxOptions
             throw new InvalidOperationException($"{key} not set");
         }
 
-        if (typeof(T) != metadata.GetType())
+        if (!metadata.GetType().IsAssignableTo(typeof(T)))
         {
             throw new InvalidOperationException($"{key} type {metadata.GetType()} not matched with requested {typeof(T)}");
         }
