@@ -72,6 +72,10 @@ internal sealed partial class BatchCompetingOutboxWorker : IOutboxWorker
 
             OutboxItemFetched(listItems.Count);
             OutboxMetricCollector.IncFetchedCount(_outboxName, listItems.Count);
+            if (listItems.Count == outboxOptions.OutboxItemsLimit)
+            {
+                OutboxMetricCollector.IncFullBatchFetchedCount(_outboxName);
+            }
 
             var result = await handler.HandleAsync(listItems.AsReadOnly(), ct).ConfigureAwait(false);
 
@@ -122,7 +126,6 @@ internal sealed partial class BatchCompetingOutboxWorker : IOutboxWorker
         }
         catch (Exception e)
         {
-            // TODO: обработка ошибок, метрики
             OutboxProcessFailed(e);
 
             if (transaction is not null)

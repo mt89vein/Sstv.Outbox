@@ -12,5 +12,8 @@ public interface IOutboxItemBatchHandler<in TOutboxItem>
     /// </summary>
     /// <param name="items">Outbox items.</param>
     /// <param name="ct">Token for cancelling operation.</param>
-    Task<IReadOnlyDictionary<Guid, OutboxItemHandleResult>> HandleAsync(IReadOnlyCollection<TOutboxItem> items, CancellationToken ct);
+    Task<IReadOnlyDictionary<Guid, OutboxItemHandleResult>> HandleAsync(
+        IReadOnlyCollection<TOutboxItem> items,
+        CancellationToken ct
+    );
 }

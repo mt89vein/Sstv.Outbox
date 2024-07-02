@@ -3,7 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using System.Diagnostics;
 
-namespace Sstv.Outbox.Npgsql;
+namespace Sstv.Outbox;
 
 /// <summary>
 /// Outbox worker starter.

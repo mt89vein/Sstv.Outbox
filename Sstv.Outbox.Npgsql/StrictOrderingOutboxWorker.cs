@@ -6,14 +6,8 @@ using Npgsql;
 
 namespace Sstv.Outbox.Npgsql;
 
-// TODO: для батчей - свой бг сервис со своей логикой
-
-// TODO: strict ordering - не позволять двигаться дальше
-
-// TODO: competing - каждый берет свою пачку, не заботясь об очередности. Если фейлится, то делаем ретрай или помечаем как фейл и забиваем?
-
 /// <summary>
-/// Сервис фоновой обработки сущностей в Outbox.
+/// All workers active, but only one do his job at the same time.
 /// </summary>
 internal sealed partial class StrictOrderingOutboxWorker : IOutboxWorker
 {
@@ -36,6 +30,11 @@ internal sealed partial class StrictOrderingOutboxWorker : IOutboxWorker
         _logger = logger ?? new NullLogger<StrictOrderingOutboxWorker>();
     }
 
+    /// <summary>
+    /// Process once.
+    /// </summary>
+    /// <param name="outboxOptions">Settings.</param>
+    /// <param name="ct">Token for cancel operation.</param>
     public async Task ProcessAsync<TOutboxItem>(OutboxOptions outboxOptions, CancellationToken ct = default)
         where TOutboxItem : class, IOutboxItem
     {
@@ -62,6 +61,10 @@ internal sealed partial class StrictOrderingOutboxWorker : IOutboxWorker
             {
                 OutboxItemFetched(count);
                 OutboxMetricCollector.IncFetchedCount(_outboxName, count);
+                if (count == outboxOptions.OutboxItemsLimit)
+                {
+                    OutboxMetricCollector.IncFullBatchFetchedCount(_outboxName);
+                }
             }
 
             var processed = new List<TOutboxItem>(outboxOptions.OutboxItemsLimit);
@@ -105,7 +108,6 @@ internal sealed partial class StrictOrderingOutboxWorker : IOutboxWorker
         }
         catch (Exception e)
         {
-            // TODO: обработка ошибок, метрики
             OutboxProcessFailed(e);
 
             if (transaction is not null)

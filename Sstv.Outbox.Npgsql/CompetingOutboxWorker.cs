@@ -65,6 +65,10 @@ internal sealed partial class CompetingOutboxWorker : IOutboxWorker
             {
                 OutboxItemFetched(count);
                 OutboxMetricCollector.IncFetchedCount(_outboxName, count);
+                if (count == outboxOptions.OutboxItemsLimit)
+                {
+                    OutboxMetricCollector.IncFullBatchFetchedCount(_outboxName);
+                }
             }
 
             var processed = new List<TOutboxItem>(outboxOptions.OutboxItemsLimit);
@@ -128,7 +132,6 @@ internal sealed partial class CompetingOutboxWorker : IOutboxWorker
         }
         catch (Exception e)
         {
-            // TODO: обработка ошибок, метрики
             OutboxProcessFailed(e);
 
             if (transaction is not null)

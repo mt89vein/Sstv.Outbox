@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
-namespace Sstv.Outbox.Npgsql;
+namespace Sstv.Outbox;
 
 /// <summary>
 /// Outbox items processing metric collector.
@@ -51,6 +51,14 @@ public static class OutboxMetricCollector
     );
 
     /// <summary>
+    /// Counts how many times fetched full batches.
+    /// </summary>
+    private static readonly Counter<long> _fullBatchesCount = _meter.CreateCounter<long>(
+        name: "outbox.items.full-batches",
+        description: "Counts how many times fetched full batches."
+    );
+
+    /// <summary>
     /// Measured duration of worker process one batch.
     /// </summary>
     /// <param name="elapsedMilliseconds">duration in ms.</param>
@@ -88,6 +96,15 @@ public static class OutboxMetricCollector
     public static void IncFetchedCount(string outboxName, int fetched)
     {
         _fetchedCount.Add(fetched, CreateTags(outboxName));
+    }
+
+    /// <summary>
+    /// Counts how many times fetched full batches.
+    /// </summary>
+    /// <param name="outboxName">Name of outbox type.</param>
+    public static void IncFullBatchFetchedCount(string outboxName)
+    {
+        _fullBatchesCount.Add(1, CreateTags(outboxName));
     }
 
     private static TagList CreateTags(string outboxName)
