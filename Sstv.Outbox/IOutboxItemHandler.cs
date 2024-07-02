@@ -11,6 +11,11 @@ public interface IOutboxItemHandler<in TOutboxItem>
     /// Processes outbox item.
     /// </summary>
     /// <param name="item">Outbox item.</param>
+    /// <param name="options">Outbox options.</param>
     /// <param name="ct">Token for cancelling operation.</param>
-    Task<OutboxItemHandleResult> HandleAsync(TOutboxItem item, CancellationToken ct);
+    Task<OutboxItemHandleResult> HandleAsync(
+        TOutboxItem item,
+        OutboxOptions options,
+        CancellationToken ct = default
+    );
 }

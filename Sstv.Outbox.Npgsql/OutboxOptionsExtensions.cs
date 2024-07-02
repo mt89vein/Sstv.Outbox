@@ -39,24 +39,4 @@ internal static class OutboxOptionsExtensions
 
         return options.Get<DbMapping>(DB_MAPPING_KEY);
     }
-
-    private static void Set<T>(this OutboxOptions options, string key, T value)
-        where T : class
-    {
-        ArgumentNullException.ThrowIfNull(key);
-        ArgumentNullException.ThrowIfNull(value);
-
-        options.Metadata[key] = value;
-    }
-
-    private static T Get<T>(this OutboxOptions options, string key)
-        where T : class
-    {
-        if (!options.Metadata.TryGetValue(key, out var metadata))
-        {
-            throw new InvalidOperationException($"{key} not set");
-        }
-
-        return (T)metadata;
-    }
 }

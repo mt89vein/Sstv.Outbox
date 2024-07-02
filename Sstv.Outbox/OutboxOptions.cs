@@ -8,6 +8,11 @@ namespace Sstv.Outbox;
 public sealed class OutboxOptions
 {
     /// <summary>
+    /// Metadata.
+    /// </summary>
+    private readonly Dictionary<string, object> _metadata = new();
+
+    /// <summary>
     /// Table name.
     /// </summary>
     public string? TableName { get; set; }
@@ -34,7 +39,40 @@ public sealed class OutboxOptions
     public RetrySettings RetrySettings { get; set; } = new();
 
     /// <summary>
-    /// Metadata.
+    /// Set <paramref name="value"/> using <paramref name="key"/>.
     /// </summary>
-    internal Dictionary<string, object> Metadata { get; } = new();
+    /// <param name="key">Key.</param>
+    /// <param name="value">Value.</param>
+    /// <typeparam name="T">Type of value.</typeparam>
+    public void Set<T>(string key, T value)
+        where T : class
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        ArgumentNullException.ThrowIfNull(value);
+
+        _metadata[key] = value;
+    }
+
+    /// <summary>
+    /// Returns <typeparamref name="T"/> using <paramref name="key"/>.
+    /// </summary>
+    /// <param name="key">Key.</param>
+    /// <typeparam name="T">Type of value.</typeparam>
+    /// <exception cref="InvalidOperationException">When key is not set or type not matched.</exception>
+    /// <returns>Value.</returns>
+    public T Get<T>(string key)
+        where T : class
+    {
+        if (!_metadata.TryGetValue(key, out var metadata))
+        {
+            throw new InvalidOperationException($"{key} not set");
+        }
+
+        if (typeof(T) != metadata.GetType())
+        {
+            throw new InvalidOperationException($"{key} type {metadata.GetType()} not matched with requested {typeof(T)}");
+        }
+
+        return (T)metadata;
+    }
 }

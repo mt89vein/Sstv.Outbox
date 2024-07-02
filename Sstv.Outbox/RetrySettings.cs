@@ -23,7 +23,7 @@ public sealed class RetrySettings
     /// <summary>
     /// Defines how many time need to delay per retry.
     /// </summary>
-    public TimeSpan RetryDelay { get; } = TimeSpan.FromSeconds(3);
+    public TimeSpan RetryDelay { get; set; } = TimeSpan.FromSeconds(3);
 
     /// <summary>
     /// Maximum delay between retries.

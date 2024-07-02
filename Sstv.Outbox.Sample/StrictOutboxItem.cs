@@ -38,10 +38,22 @@ public sealed class StrictOutboxItem : IOutboxItem, IHasStatus
     public byte[]? Data { get; set; }
 }
 
-
+/// <summary>
+/// Handler for StrictOutboxItem.
+/// </summary>
 public sealed class StrictOutboxItemHandler : IOutboxItemHandler<StrictOutboxItem>
 {
-    public Task<OutboxItemHandleResult> HandleAsync(StrictOutboxItem item, CancellationToken ct)
+    /// <summary>
+    /// Processes outbox item.
+    /// </summary>
+    /// <param name="item">Outbox item.</param>
+    /// <param name="options">Outbox options.</param>
+    /// <param name="ct">Token for cancelling operation.</param>
+    public Task<OutboxItemHandleResult> HandleAsync(
+        StrictOutboxItem item,
+        OutboxOptions options,
+        CancellationToken ct = default
+    )
     {
         ArgumentNullException.ThrowIfNull(item);
 

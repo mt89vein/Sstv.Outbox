@@ -38,13 +38,27 @@ public sealed class OneMoreOutboxItem : IOutboxItem, IHasStatus
     public byte[]? Data { get; set; }
 }
 
+/// <summary>
+/// Handler for OneMoreOutboxItem.
+/// </summary>
 public sealed class OneMoreOutboxItemHandler : IOutboxItemHandler<OneMoreOutboxItem>
 {
-    public Task<OutboxItemHandleResult> HandleAsync(OneMoreOutboxItem item, CancellationToken ct)
+    /// <summary>
+    /// Processes outbox item.
+    /// </summary>
+    /// <param name="item">Outbox item.</param>
+    /// <param name="options">Outbox options.</param>
+    /// <param name="ct">Token for cancelling operation.</param>
+    public Task<OutboxItemHandleResult> HandleAsync(
+        OneMoreOutboxItem item,
+        OutboxOptions options,
+        CancellationToken ct
+    )
     {
         ArgumentNullException.ThrowIfNull(item);
 
-        Console.WriteLine("OneMoreOutboxItem Handled {0} retry number: {1}", item.Id.ToString(), item.RetryCount.GetValueOrDefault(0).ToString());
+        Console.WriteLine("OneMoreOutboxItem Handled {0} retry number: {1}", item.Id.ToString(),
+            item.RetryCount.GetValueOrDefault(0).ToString());
 
         return Task.FromResult(OutboxItemHandleResult.Ok);
     }

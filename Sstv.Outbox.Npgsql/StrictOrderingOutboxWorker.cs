@@ -76,7 +76,7 @@ internal sealed partial class StrictOrderingOutboxWorker : IOutboxWorker
                 var handler = scope.ServiceProvider.GetRequiredService<IOutboxItemHandler<TOutboxItem>>();
                 try
                 {
-                    var result = await handler.HandleAsync(item, ct).ConfigureAwait(false);
+                    var result = await handler.HandleAsync(item, outboxOptions, ct).ConfigureAwait(false);
 
                     if (result.IsSuccess())
                     {

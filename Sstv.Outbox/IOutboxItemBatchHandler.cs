@@ -11,9 +11,11 @@ public interface IOutboxItemBatchHandler<in TOutboxItem>
     /// Processes outbox items in batch.
     /// </summary>
     /// <param name="items">Outbox items.</param>
+    /// <param name="options">Outbox options.</param>
     /// <param name="ct">Token for cancelling operation.</param>
     Task<IReadOnlyDictionary<Guid, OutboxItemHandleResult>> HandleAsync(
         IReadOnlyCollection<TOutboxItem> items,
-        CancellationToken ct
+        OutboxOptions options,
+        CancellationToken ct = default
     );
 }

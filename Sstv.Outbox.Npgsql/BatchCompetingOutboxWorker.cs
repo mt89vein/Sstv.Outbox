@@ -77,7 +77,7 @@ internal sealed partial class BatchCompetingOutboxWorker : IOutboxWorker
                 OutboxMetricCollector.IncFullBatchFetchedCount(_outboxName);
             }
 
-            var result = await handler.HandleAsync(listItems.AsReadOnly(), ct).ConfigureAwait(false);
+            var result = await handler.HandleAsync(listItems.AsReadOnly(), outboxOptions, ct).ConfigureAwait(false);
 
             var processed = new List<TOutboxItem>(outboxOptions.OutboxItemsLimit);
             var retried = new List<IHasStatus>();
