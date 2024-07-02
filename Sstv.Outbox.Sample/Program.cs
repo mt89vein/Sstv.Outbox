@@ -46,7 +46,7 @@ public class Program
 
         var app = builder.Build();
 
-        app.MapGet("/push", async (NpgsqlDataSource datasource, CancellationToken ct = default) =>
+        app.MapGet("/push", async (CancellationToken ct = default) =>
         {
             var cmd = datasource.CreateCommand(
                 """
@@ -80,7 +80,7 @@ public class Program
             return Results.Ok();
         });
 
-        app.MapGet("/push2", async (NpgsqlDataSource datasource, CancellationToken ct = default) =>
+        app.MapGet("/push2", async (CancellationToken ct = default) =>
         {
             var cmd = datasource.CreateCommand(
                 """
@@ -114,7 +114,7 @@ public class Program
             return Results.Ok();
         });
 
-        app.MapGet("/push3", async (NpgsqlDataSource datasource, CancellationToken ct = default) =>
+        app.MapGet("/push3", async (CancellationToken ct = default) =>
         {
             var cmd = datasource.CreateCommand(
                 """

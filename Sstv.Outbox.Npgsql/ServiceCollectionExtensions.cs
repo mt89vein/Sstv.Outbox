@@ -1,8 +1,7 @@
 using Humanizer;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Npgsql.NameTranslation;
-using System.Globalization;
+using Npgsql;
 
 namespace Sstv.Outbox.Npgsql;
 
@@ -19,17 +18,24 @@ public static class ServiceCollectionExtensions
     /// <summary>
     /// Adds <typeparamref name="TOutboxItem"/> handling services.
     /// </summary>
-    /// <param name="services"></param>
-    /// <param name="configure"></param>
+    /// <param name="services">Service registrator.</param>
+    /// <param name="npgsqlDataSource">DbConnection datasource.</param>
+    /// <param name="handlerLifetime">Which lifetime should be handler.</param>
+    /// <param name="configure">Optional configure action.</param>
     /// <typeparam name="TOutboxItem">Outbox item type.</typeparam>
     /// <typeparam name="TOutboxItemHandler">Outbox item handler type.</typeparam>
     public static void AddOutboxItem<TOutboxItem, TOutboxItemHandler>(
         this IServiceCollection services,
+        NpgsqlDataSource? npgsqlDataSource = null,
+        ServiceLifetime handlerLifetime = ServiceLifetime.Transient,
         Action<OutboxOptions>? configure = null
     )
         where TOutboxItem : class, IOutboxItem
         where TOutboxItemHandler : class, IOutboxItemHandler<TOutboxItem>
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(npgsqlDataSource);
+
         var type = typeof(TOutboxItem);
         if (_registeredTypes.Contains(type))
         {
@@ -39,26 +45,19 @@ public static class ServiceCollectionExtensions
         services
             .AddOptions<OutboxOptions>(type.Name)
             .BindConfiguration($"Outbox:{type.Name}")
-            .Configure(o =>
+            .Configure<IServiceProvider>((o, sp) =>
             {
-                o.Mapping = new DbMapping
-                {
-                    TableName = NpgsqlSnakeCaseNameTranslator.ConvertToSnakeCase(type.Name.Pluralize(), CultureInfo.InvariantCulture),
-                    ColumnNames =
-                    {
-                        [nameof(IOutboxItem.Id)] = NpgsqlSnakeCaseNameTranslator.ConvertToSnakeCase(nameof(IOutboxItem.Id), CultureInfo.InvariantCulture),
-                        [nameof(IHasStatus.Status)] = NpgsqlSnakeCaseNameTranslator.ConvertToSnakeCase(nameof(IHasStatus.Status), CultureInfo.InvariantCulture),
-                        [nameof(IHasStatus.RetryAfter)] = NpgsqlSnakeCaseNameTranslator.ConvertToSnakeCase(nameof(IHasStatus.RetryAfter), CultureInfo.InvariantCulture),
-                        [nameof(IHasStatus.RetryCount)] = NpgsqlSnakeCaseNameTranslator.ConvertToSnakeCase(nameof(IHasStatus.RetryCount), CultureInfo.InvariantCulture),
-                    }
-                };
-                o.WorkerType ??= NpgsqlWorkerTypes.COMPETING;
-
                 configure?.Invoke(o);
+
+                o.SetNpgsqlDataSource(npgsqlDataSource ?? sp.GetRequiredService<NpgsqlDataSource>());
+                o.SetDbMapping(DbMapping.GetDefault(o.TableName ?? type.Name.Pluralize()));
+
+                o.WorkerType ??= NpgsqlWorkerTypes.COMPETING;
             })
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        services.Add(ServiceDescriptor.Describe(typeof(IOutboxItemHandler<TOutboxItem>), typeof(TOutboxItemHandler), handlerLifetime));
         services.TryAddTransient<IOutboxItemHandler<TOutboxItem>, TOutboxItemHandler>();
         services.TryAddKeyedTransient<IOutboxWorker, StrictOrderingOutboxWorker>(NpgsqlWorkerTypes.STRICT_ORDERING);
         services.TryAddKeyedTransient<IOutboxWorker, CompetingOutboxWorker>(NpgsqlWorkerTypes.COMPETING);
@@ -71,17 +70,24 @@ public static class ServiceCollectionExtensions
     /// <summary>
     /// Adds <typeparamref name="TOutboxItem"/> handling services.
     /// </summary>
-    /// <param name="services"></param>
-    /// <param name="configure"></param>
+    /// <param name="services">Service registrator.</param>
+    /// <param name="npgsqlDataSource">DbConnection datasource.</param>
+    /// <param name="handlerLifetime">Which lifetime should be handler.</param>
+    /// <param name="configure">Optional configure action.</param>
     /// <typeparam name="TOutboxItem">Outbox item type.</typeparam>
     /// <typeparam name="TOutboxItemHandler">Outbox item handler type.</typeparam>
     public static void AddOutboxItemBatch<TOutboxItem, TOutboxItemHandler>(
         this IServiceCollection services,
+        NpgsqlDataSource? npgsqlDataSource = null,
+        ServiceLifetime handlerLifetime = ServiceLifetime.Transient,
         Action<OutboxOptions>? configure = null
     )
         where TOutboxItem : class, IOutboxItem
         where TOutboxItemHandler : class, IOutboxItemBatchHandler<TOutboxItem>
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(npgsqlDataSource);
+
         var type = typeof(TOutboxItem);
         if (_registeredTypes.Contains(type))
         {
@@ -91,28 +97,19 @@ public static class ServiceCollectionExtensions
         services
             .AddOptions<OutboxOptions>(type.Name)
             .BindConfiguration($"Outbox:{type.Name}")
-            .Configure(o =>
+            .Configure<IServiceProvider>((o, sp) =>
             {
-                o.Mapping = new DbMapping
-                {
-                    TableName = NpgsqlSnakeCaseNameTranslator.ConvertToSnakeCase(type.Name.Pluralize(), CultureInfo.InvariantCulture),
-                    ColumnNames =
-                    {
-                        [nameof(IOutboxItem.Id)] = NpgsqlSnakeCaseNameTranslator.ConvertToSnakeCase(nameof(IOutboxItem.Id), CultureInfo.InvariantCulture),
-                        [nameof(IHasStatus.Status)] = NpgsqlSnakeCaseNameTranslator.ConvertToSnakeCase(nameof(IHasStatus.Status), CultureInfo.InvariantCulture),
-                        [nameof(IHasStatus.RetryAfter)] = NpgsqlSnakeCaseNameTranslator.ConvertToSnakeCase(nameof(IHasStatus.RetryAfter), CultureInfo.InvariantCulture),
-                        [nameof(IHasStatus.RetryCount)] = NpgsqlSnakeCaseNameTranslator.ConvertToSnakeCase(nameof(IHasStatus.RetryCount), CultureInfo.InvariantCulture),
-                    }
-                };
-                o.WorkerType ??= NpgsqlWorkerTypes.BATCH_COMPETING;
-
                 configure?.Invoke(o);
+
+                o.SetNpgsqlDataSource(npgsqlDataSource ?? sp.GetRequiredService<NpgsqlDataSource>());
+                o.SetDbMapping(DbMapping.GetDefault(o.TableName ?? type.Name.Pluralize()));
+
+                o.WorkerType ??= NpgsqlWorkerTypes.BATCH_COMPETING;
             })
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        // TODO: NOT register client types?
-        services.TryAddTransient<IOutboxItemBatchHandler<TOutboxItem>, TOutboxItemHandler>();
+        services.TryAdd(ServiceDescriptor.Describe(typeof(IOutboxItemBatchHandler<TOutboxItem>), typeof(TOutboxItemHandler), handlerLifetime));
         services.TryAddKeyedTransient<IOutboxWorker, BatchCompetingOutboxWorker>(NpgsqlWorkerTypes.BATCH_COMPETING);
         services.TryAddSingleton(TimeProvider.System);
         services.AddHostedService<OutboxBackgroundService<TOutboxItem>>();

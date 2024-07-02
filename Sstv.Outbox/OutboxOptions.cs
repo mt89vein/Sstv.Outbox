@@ -8,6 +8,11 @@ namespace Sstv.Outbox;
 public sealed class OutboxOptions
 {
     /// <summary>
+    /// Table name.
+    /// </summary>
+    public string? TableName { get; set; }
+
+    /// <summary>
     /// Worker types.
     /// </summary>
     public string? WorkerType { get; set; }
@@ -29,43 +34,7 @@ public sealed class OutboxOptions
     public RetrySettings RetrySettings { get; set; } = new();
 
     /// <summary>
-    /// DbName mapping.
+    /// Metadata.
     /// </summary>
-    public DbMapping Mapping { get; set; } = null!;
-}
-
-/// <summary>
-/// DbNamings.
-/// </summary>
-public sealed class DbMapping
-{
-    /// <summary>
-    /// The name of outbox table.
-    /// </summary>
-    public string TableName { get; set; } = null!;
-
-    /// <summary>
-    /// Mapping of columns.
-    /// </summary>
-    public Dictionary<string, string> ColumnNames { get; } = new();
-
-    /// <summary>
-    /// Id column.
-    /// </summary>
-    internal string Id => ColumnNames[nameof(IOutboxItem.Id)];
-
-    /// <summary>
-    /// Status column.
-    /// </summary>
-    internal string Status => ColumnNames[nameof(IHasStatus.Status)];
-
-    /// <summary>
-    /// Retry after column.
-    /// </summary>
-    internal string RetryAfter => ColumnNames[nameof(IHasStatus.RetryAfter)];
-
-    /// <summary>
-    /// Retry count column.
-    /// </summary>
-    internal string RetryCount => ColumnNames[nameof(IHasStatus.RetryCount)];
+    internal Dictionary<string, object> Metadata { get; } = new();
 }

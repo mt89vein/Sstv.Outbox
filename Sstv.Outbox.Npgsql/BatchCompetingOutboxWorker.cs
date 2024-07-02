@@ -11,23 +11,19 @@ namespace Sstv.Outbox.Npgsql;
 /// </summary>
 internal sealed partial class BatchCompetingOutboxWorker : IOutboxWorker
 {
-    private readonly NpgsqlDataSource _npgsqlDataSource;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<BatchCompetingOutboxWorker> _logger;
     private string? _outboxName;
 
     public BatchCompetingOutboxWorker(
-        NpgsqlDataSource npgsqlDataSource,
         TimeProvider timeProvider,
         IServiceScopeFactory scopeFactory,
         ILogger<BatchCompetingOutboxWorker>? logger = null
     )
     {
-        ArgumentNullException.ThrowIfNull(npgsqlDataSource);
         ArgumentNullException.ThrowIfNull(scopeFactory);
 
-        _npgsqlDataSource = npgsqlDataSource;
         _scopeFactory = scopeFactory;
         _timeProvider = timeProvider;
         _logger = logger ?? new NullLogger<BatchCompetingOutboxWorker>();
@@ -46,7 +42,11 @@ internal sealed partial class BatchCompetingOutboxWorker : IOutboxWorker
         NpgsqlTransaction? transaction = null;
         try
         {
-            await using var connection = await _npgsqlDataSource.OpenConnectionAsync(ct).ConfigureAwait(false);
+            await using var connection = await outboxOptions
+                .GetNpgsqlDataSource()
+                .OpenConnectionAsync(ct)
+                .ConfigureAwait(false);
+
             transaction = await connection.BeginTransactionAsync(ct).ConfigureAwait(false);
 
             var items = await LockAndReturnItemsBatchAsync<TOutboxItem>(transaction, outboxOptions)
@@ -166,9 +166,7 @@ internal sealed partial class BatchCompetingOutboxWorker : IOutboxWorker
         OutboxOptions outboxOptions
     ) where TOutboxItem : class, IOutboxItem
     {
-        ArgumentNullException.ThrowIfNull(outboxOptions.Mapping);
-
-        var m = outboxOptions.Mapping;
+        var m = outboxOptions.GetDbMapping();
 
         var sql = $"""
                    SELECT * FROM "{m.TableName}"
@@ -191,9 +189,7 @@ internal sealed partial class BatchCompetingOutboxWorker : IOutboxWorker
     ) where TOutboxItem : class, IOutboxItem
     {
         // TODO: Delete or mark as completed with drop partitions (daily/weekly)?
-        ArgumentNullException.ThrowIfNull(outboxOptions.Mapping);
-
-        var m = outboxOptions.Mapping;
+        var m = outboxOptions.GetDbMapping();
 
         const string IDS = "ids";
         var sql = $"""
@@ -215,12 +211,12 @@ internal sealed partial class BatchCompetingOutboxWorker : IOutboxWorker
         CancellationToken ct
     )
     {
-        var m = outboxOptions.Mapping;
+        var m = outboxOptions.GetDbMapping();
         var sql = $"""
                    UPDATE "{m.TableName}"
-                   SET status = data.status,
-                       retry_count = data.retry_count,
-                       retry_after  = data.retry_after
+                   SET "{m.Status}" = data."{m.Status}",
+                       "{m.RetryCount}" = data."{m.RetryCount}",
+                       "{m.RetryAfter}"  = data."{m.RetryAfter}"
                    FROM (SELECT * FROM unnest(@{m.Id}, @{m.Status}, @{m.RetryCount}, @{m.RetryAfter}))
                                     AS data("{m.Id}", "{m.Status}", "{m.RetryCount}", "{m.RetryAfter}")
                    WHERE "{m.TableName}"."{m.Id}" = data."{m.Id}";

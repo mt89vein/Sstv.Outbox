@@ -11,21 +11,17 @@ namespace Sstv.Outbox.Npgsql;
 /// </summary>
 internal sealed partial class StrictOrderingOutboxWorker : IOutboxWorker
 {
-    private readonly NpgsqlDataSource _npgsqlDataSource;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<StrictOrderingOutboxWorker> _logger;
     private string? _outboxName;
 
     public StrictOrderingOutboxWorker(
-        NpgsqlDataSource npgsqlDataSource,
         IServiceScopeFactory scopeFactory,
         ILogger<StrictOrderingOutboxWorker>? logger = null
     )
     {
-        ArgumentNullException.ThrowIfNull(npgsqlDataSource);
         ArgumentNullException.ThrowIfNull(scopeFactory);
 
-        _npgsqlDataSource = npgsqlDataSource;
         _scopeFactory = scopeFactory;
         _logger = logger ?? new NullLogger<StrictOrderingOutboxWorker>();
     }
@@ -43,7 +39,11 @@ internal sealed partial class StrictOrderingOutboxWorker : IOutboxWorker
         NpgsqlTransaction? transaction = null;
         try
         {
-            await using var connection = await _npgsqlDataSource.OpenConnectionAsync(ct).ConfigureAwait(false);
+            await using var connection = await outboxOptions
+                .GetNpgsqlDataSource()
+                .OpenConnectionAsync(ct)
+                .ConfigureAwait(false);
+
             transaction = await connection.BeginTransactionAsync(ct).ConfigureAwait(false);
             var items = await LockAndReturnItemsBatchAsync<TOutboxItem>(transaction, outboxOptions)
                 .ConfigureAwait(false);
@@ -129,9 +129,7 @@ internal sealed partial class StrictOrderingOutboxWorker : IOutboxWorker
         OutboxOptions outboxOptions
     ) where TOutboxItem : class, IOutboxItem
     {
-        ArgumentNullException.ThrowIfNull(outboxOptions.Mapping);
-
-        var m = outboxOptions.Mapping;
+        var m = outboxOptions.GetDbMapping();
         // TODO: отфильтровывать по метке - processed = false, если используем партиции
 
         var sql = $"""
@@ -152,9 +150,8 @@ internal sealed partial class StrictOrderingOutboxWorker : IOutboxWorker
     ) where TOutboxItem : class, IOutboxItem
     {
         // TODO: Delete or mark as completed with drop partitions (daily/weekly)?
-        ArgumentNullException.ThrowIfNull(outboxOptions.Mapping);
 
-        var m = outboxOptions.Mapping;
+        var m = outboxOptions.GetDbMapping();
 
         const string IDS = "ids";
         var sql = $"""
