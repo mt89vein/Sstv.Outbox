@@ -13,11 +13,6 @@ public sealed class OutboxOptions
     private readonly Dictionary<string, object> _metadata = new();
 
     /// <summary>
-    /// Table name.
-    /// </summary>
-    public string? TableName { get; set; }
-
-    /// <summary>
     /// Worker types.
     /// </summary>
     public string? WorkerType { get; set; }

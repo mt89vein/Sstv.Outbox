@@ -8,8 +8,8 @@ namespace Sstv.Outbox.Npgsql;
 /// Outbox items repository.
 /// </summary>
 /// <typeparam name="TOutboxItem">OutboxItem.</typeparam>
-internal sealed class OutboxItemRepository<TOutboxItem> : IOutboxRepository<TOutboxItem>
-    where TOutboxItem : IOutboxItem
+internal sealed class OutboxMaintenanceItemRepository<TOutboxItem> : IOutboxMaintenanceRepository<TOutboxItem>
+    where TOutboxItem : class, IOutboxItem
 {
     /// <summary>
     /// Outbox settings.
@@ -17,10 +17,10 @@ internal sealed class OutboxItemRepository<TOutboxItem> : IOutboxRepository<TOut
     private readonly OutboxOptions _outboxOptions;
 
     /// <summary>
-    /// Creates new instance of <see cref="OutboxItemRepository{TOutboxItem}"/>.
+    /// Creates new instance of <see cref="OutboxMaintenanceItemRepository{TOutboxItem}"/>.
     /// </summary>
     /// <param name="monitor">Outbox settings.</param>
-    public OutboxItemRepository(IOptionsMonitor<OutboxOptions> monitor)
+    public OutboxMaintenanceItemRepository(IOptionsMonitor<OutboxOptions> monitor)
     {
         _outboxOptions = monitor.Get(typeof(TOutboxItem).Name);
     }
@@ -32,8 +32,11 @@ internal sealed class OutboxItemRepository<TOutboxItem> : IOutboxRepository<TOut
     /// <param name="take">How many records return.</param>
     /// <param name="ct">Token for cancel operation.</param>
     /// <returns>Page of OutboxItems.</returns>
-    public async Task<IEnumerable<TOutboxItem>> GetChunkAsync(int skip = 0, int take = 100,
-        CancellationToken ct = default)
+    public async Task<IEnumerable<TOutboxItem>> GetChunkAsync(
+        int skip = 0,
+        int take = 100,
+        CancellationToken ct = default
+    )
     {
         await using var connection = await _outboxOptions.GetNpgsqlDataSource().OpenConnectionAsync(ct);
 

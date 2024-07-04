@@ -16,7 +16,7 @@ public static class OutboxApi
     /// <param name="webApplication">WebApp.</param>
     /// <typeparam name="TOutboxItem">Type of outbox item.</typeparam>
     public static RouteGroupBuilder MapOutboxMaintenanceEndpoints<TOutboxItem>(this WebApplication webApplication)
-        where TOutboxItem : IOutboxItem
+        where TOutboxItem : class, IOutboxItem
     {
         var name = typeof(TOutboxItem).Name;
         var group = webApplication
@@ -24,15 +24,15 @@ public static class OutboxApi
             .WithTags(name);
 
         group.MapGet("/search", async (
-                [FromServices] IOutboxRepository<TOutboxItem> repository,
+                [FromServices] IOutboxMaintenanceRepository<TOutboxItem> repository,
                 int skip = 0,
                 int take = 100,
                 CancellationToken ct = default
             ) => Results.Ok(await repository.GetChunkAsync(skip, take, ct))
-        ).Produces(200);
+        ).Produces(200, typeof(IEnumerable<TOutboxItem>));
 
         group.MapDelete("/clear", async (
-            [FromServices] IOutboxRepository<TOutboxItem> repository,
+            [FromServices] IOutboxMaintenanceRepository<TOutboxItem> repository,
             CancellationToken ct = default
         ) =>
         {
@@ -41,7 +41,7 @@ public static class OutboxApi
         }).Produces(200);
 
         group.MapDelete("/delete", async (
-            [FromServices] IOutboxRepository<TOutboxItem> repository,
+            [FromServices] IOutboxMaintenanceRepository<TOutboxItem> repository,
             [FromBody] Guid[] ids,
             CancellationToken ct = default
         ) =>
@@ -51,7 +51,7 @@ public static class OutboxApi
         }).Produces(200);
 
         group.MapPost("/restart", async (
-            [FromServices] IOutboxRepository<TOutboxItem> repository,
+            [FromServices] IOutboxMaintenanceRepository<TOutboxItem> repository,
             [FromBody] Guid[] ids,
             CancellationToken ct = default
         ) =>

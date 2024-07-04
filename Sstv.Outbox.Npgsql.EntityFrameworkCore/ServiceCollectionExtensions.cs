@@ -1,9 +1,8 @@
-using Humanizer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Npgsql;
 
-namespace Sstv.Outbox.Npgsql;
+namespace Sstv.Outbox.Npgsql.EntityFrameworkCore;
 
 /// <summary>
 /// Extensions methods for <see cref="IServiceCollection"/>.
@@ -19,19 +18,17 @@ public static class ServiceCollectionExtensions
     /// Adds <typeparamref name="TOutboxItem"/> handling services.
     /// </summary>
     /// <param name="services">Service registrator.</param>
-    /// <param name="tableName">Table name. By default name of type in plural.</param>
-    /// <param name="npgsqlDataSource">DbConnection datasource.</param>
     /// <param name="handlerLifetime">Which lifetime should be handler.</param>
     /// <param name="configure">Optional configure action.</param>
+    /// <typeparam name="TDbContext">DbContext.</typeparam>
     /// <typeparam name="TOutboxItem">Outbox item type.</typeparam>
     /// <typeparam name="TOutboxItemHandler">Outbox item handler type.</typeparam>
-    public static void AddOutboxItem<TOutboxItem, TOutboxItemHandler>(
+    public static void AddOutboxItem<TDbContext, TOutboxItem, TOutboxItemHandler>(
         this IServiceCollection services,
-        string? tableName = null,
-        NpgsqlDataSource? npgsqlDataSource = null,
         ServiceLifetime handlerLifetime = ServiceLifetime.Transient,
         Action<OutboxOptions>? configure = null
     )
+        where TDbContext : DbContext
         where TOutboxItem : class, IOutboxItem
         where TOutboxItemHandler : class, IOutboxItemHandler<TOutboxItem>
     {
@@ -52,25 +49,22 @@ public static class ServiceCollectionExtensions
             {
                 configure?.Invoke(o);
 
-                o.SetNpgsqlDataSource(npgsqlDataSource ?? sp.GetRequiredService<NpgsqlDataSource>());
-                o.SetDbMapping(DbMapping.GetDefault(tableName ?? outboxName.Pluralize()));
+                using var scope = sp.CreateScope();
+                using var dbContext = scope.ServiceProvider.GetRequiredService<TDbContext>();
+                o.SetDbMapping(DbMapping.GetFor<TOutboxItem>(dbContext));
                 o.SetOutboxName(outboxName);
 
-                o.WorkerType ??= NpgsqlWorkerTypes.COMPETING;
+                o.WorkerType ??= EfCoreWorkerTypes.COMPETING;
             })
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        services.Add(ServiceDescriptor.Describe(typeof(IOutboxItemHandler<TOutboxItem>), typeof(TOutboxItemHandler), handlerLifetime));
+        services.Add(ServiceDescriptor.Describe(typeof(IOutboxItemHandler<TOutboxItem>), typeof(TOutboxItemHandler),
+            handlerLifetime));
         services.TryAddTransient<IOutboxItemHandler<TOutboxItem>, TOutboxItemHandler>();
-        services.TryAddSingleton<IOutboxMaintenanceRepository<TOutboxItem>, OutboxMaintenanceItemRepository<TOutboxItem>>();
-
-        services.TryAddKeyedTransient<IOutboxRepository<TOutboxItem>, CompetingOutboxRepository<TOutboxItem>>(NpgsqlWorkerTypes.COMPETING);
-        services.TryAddKeyedTransient<IOutboxWorker, CompetingOutboxWorker>(NpgsqlWorkerTypes.COMPETING);
-
-        services.TryAddKeyedTransient<IOutboxRepository<TOutboxItem>, StrictOrderingOutboxRepository<TOutboxItem>>(NpgsqlWorkerTypes.STRICT_ORDERING);
-        services.TryAddKeyedTransient<IOutboxWorker, StrictOrderingOutboxWorker>(NpgsqlWorkerTypes.STRICT_ORDERING);
-
+        // services.TryAddSingleton<IOutboxRepository<TOutboxItem>, OutboxItemRepository<TOutboxItem>>();
+        services.TryAddKeyedTransient<IOutboxWorker, StrictOrderingOutboxWorker<TDbContext>>(EfCoreWorkerTypes.STRICT_ORDERING);
+        services.TryAddKeyedTransient<IOutboxWorker, CompetingOutboxWorker<TDbContext>>(EfCoreWorkerTypes.COMPETING);
         services.TryAddSingleton(TimeProvider.System);
         services.AddHostedService<OutboxBackgroundService<TOutboxItem>>();
 
@@ -81,19 +75,17 @@ public static class ServiceCollectionExtensions
     /// Adds <typeparamref name="TOutboxItem"/> handling services.
     /// </summary>
     /// <param name="services">Service registrator.</param>
-    /// <param name="tableName">Table name. By default name of type in plural.</param>
-    /// <param name="npgsqlDataSource">DbConnection datasource.</param>
     /// <param name="handlerLifetime">Which lifetime should be handler.</param>
     /// <param name="configure">Optional configure action.</param>
+    /// <typeparam name="TDbContext">DbContext.</typeparam>
     /// <typeparam name="TOutboxItem">Outbox item type.</typeparam>
     /// <typeparam name="TOutboxItemHandler">Outbox item handler type.</typeparam>
-    public static void AddOutboxItemBatch<TOutboxItem, TOutboxItemHandler>(
+    public static void AddOutboxItemBatch<TDbContext, TOutboxItem, TOutboxItemHandler>(
         this IServiceCollection services,
-        string? tableName = null,
-        NpgsqlDataSource? npgsqlDataSource = null,
         ServiceLifetime handlerLifetime = ServiceLifetime.Transient,
         Action<OutboxOptions>? configure = null
     )
+        where TDbContext : DbContext
         where TOutboxItem : class, IOutboxItem
         where TOutboxItemHandler : class, IOutboxItemBatchHandler<TOutboxItem>
     {
@@ -114,21 +106,20 @@ public static class ServiceCollectionExtensions
             {
                 configure?.Invoke(o);
 
-                o.SetNpgsqlDataSource(npgsqlDataSource ?? sp.GetRequiredService<NpgsqlDataSource>());
-                o.SetDbMapping(DbMapping.GetDefault(tableName ?? outboxName.Pluralize()));
+                using var scope = sp.CreateScope();
+                using var dbContext = scope.ServiceProvider.GetRequiredService<TDbContext>();
+                o.SetDbMapping(DbMapping.GetFor<TOutboxItem>(dbContext));
                 o.SetOutboxName(outboxName);
 
-                o.WorkerType ??= NpgsqlWorkerTypes.BATCH_COMPETING;
+                o.WorkerType ??= EfCoreWorkerTypes.BATCH_COMPETING;
             })
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        services.TryAdd(ServiceDescriptor.Describe(typeof(IOutboxItemBatchHandler<TOutboxItem>), typeof(TOutboxItemHandler), handlerLifetime));
-        services.TryAddSingleton<IOutboxMaintenanceRepository<TOutboxItem>, OutboxMaintenanceItemRepository<TOutboxItem>>();
-
-        services.TryAddKeyedTransient<IOutboxRepository<TOutboxItem>, CompetingOutboxRepository<TOutboxItem>>(NpgsqlWorkerTypes.BATCH_COMPETING);
-        services.TryAddKeyedTransient<IOutboxWorker, BatchCompetingOutboxWorker>(NpgsqlWorkerTypes.BATCH_COMPETING);
-
+        services.TryAdd(ServiceDescriptor.Describe(typeof(IOutboxItemBatchHandler<TOutboxItem>),
+            typeof(TOutboxItemHandler), handlerLifetime));
+        // services.TryAddSingleton<IOutboxRepository<TOutboxItem>, OutboxItemRepository<TOutboxItem>>();
+        // services.TryAddKeyedTransient<IOutboxWorker, BatchCompetingOutboxWorker>(EfCoreWorkerTypes.BATCH_COMPETING);
         services.TryAddSingleton(TimeProvider.System);
         services.AddHostedService<OutboxBackgroundService<TOutboxItem>>();
 

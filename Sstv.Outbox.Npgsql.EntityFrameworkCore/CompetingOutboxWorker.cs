@@ -1,32 +1,33 @@
-using Dapper;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Npgsql;
+using System.Diagnostics.CodeAnalysis;
 
-namespace Sstv.Outbox.Npgsql;
+namespace Sstv.Outbox.Npgsql.EntityFrameworkCore;
 
 /// <summary>
 /// All workers of this type grabs different N items and process them concurrently.
 /// </summary>
-internal sealed partial class CompetingOutboxWorker : IOutboxWorker
+internal sealed partial class CompetingOutboxWorker<TDbContext> : IOutboxWorker
+    where TDbContext : DbContext
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly TimeProvider _timeProvider;
-    private readonly ILogger<CompetingOutboxWorker> _logger;
-    private string? _outboxName;
+    private readonly ILogger<CompetingOutboxWorker<TDbContext>> _logger;
 
     public CompetingOutboxWorker(
         TimeProvider timeProvider,
         IServiceScopeFactory scopeFactory,
-        ILogger<CompetingOutboxWorker>? logger = null
+        ILogger<CompetingOutboxWorker<TDbContext>>? logger = null
     )
     {
         ArgumentNullException.ThrowIfNull(scopeFactory);
 
         _scopeFactory = scopeFactory;
         _timeProvider = timeProvider;
-        _logger = logger ?? new NullLogger<CompetingOutboxWorker>();
+        _logger = logger ?? new NullLogger<CompetingOutboxWorker<TDbContext>>();
     }
 
     /// <summary>
@@ -37,19 +38,18 @@ internal sealed partial class CompetingOutboxWorker : IOutboxWorker
     public async Task ProcessAsync<TOutboxItem>(OutboxOptions outboxOptions, CancellationToken ct = default)
         where TOutboxItem : class, IOutboxItem
     {
-        _outboxName ??= typeof(TOutboxItem).Name;
+        var outboxName = outboxOptions.GetOutboxName();
 
-        NpgsqlTransaction? transaction = null;
+        IDbContextTransaction? transaction = null;
         try
         {
-            await using var connection = await outboxOptions
-                .GetNpgsqlDataSource()
-                .OpenConnectionAsync(ct)
-                .ConfigureAwait(false);
+            await using var _ = _scopeFactory.CreateAsyncScope();
+            await using var ctx = _.ServiceProvider.GetRequiredService<TDbContext>();
+            var dbSet = ctx.Set<TOutboxItem>();
 
-            transaction = await connection.BeginTransactionAsync(ct).ConfigureAwait(false);
+            transaction = await ctx.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
 
-            var items = await LockAndReturnItemsBatchAsync<TOutboxItem>(transaction, outboxOptions)
+            var items = await LockAndReturnItemsBatchAsync(dbSet, outboxOptions, ct)
                 .ConfigureAwait(false);
 
             if (items.TryGetNonEnumeratedCount(out var count) && count == 0)
@@ -64,15 +64,15 @@ internal sealed partial class CompetingOutboxWorker : IOutboxWorker
             if (count != 0)
             {
                 OutboxItemFetched(count);
-                OutboxMetricCollector.IncFetchedCount(_outboxName, count);
+                OutboxMetricCollector.IncFetchedCount(outboxName, count);
                 if (count == outboxOptions.OutboxItemsLimit)
                 {
-                    OutboxMetricCollector.IncFullBatchFetchedCount(_outboxName);
+                    OutboxMetricCollector.IncFullBatchFetchedCount(outboxName);
                 }
             }
 
             var processed = new List<TOutboxItem>(outboxOptions.OutboxItemsLimit);
-            var retry = new List<IHasStatus>();
+            var retry = new List<TOutboxItem>();
 
             foreach (var item in items)
             {
@@ -91,7 +91,7 @@ internal sealed partial class CompetingOutboxWorker : IOutboxWorker
                     {
                         if (item is IHasStatus hasStatus)
                         {
-                            retry.Add(Retry(hasStatus, outboxOptions.RetrySettings));
+                            retry.Add((TOutboxItem)Retry(hasStatus, outboxOptions.RetrySettings));
                         }
                         else
                         {
@@ -105,7 +105,7 @@ internal sealed partial class CompetingOutboxWorker : IOutboxWorker
 
                     if (item is IHasStatus hasStatus)
                     {
-                        retry.Add(Retry(hasStatus, outboxOptions.RetrySettings));
+                        retry.Add((TOutboxItem)Retry(hasStatus, outboxOptions.RetrySettings));
                     }
                     else
                     {
@@ -116,17 +116,18 @@ internal sealed partial class CompetingOutboxWorker : IOutboxWorker
 
             if (processed.Count > 0)
             {
-                OutboxMetricCollector.IncProcessedCount(_outboxName, processed.Count);
-                await DeleteAsync(processed, transaction, outboxOptions, ct).ConfigureAwait(false);
+                OutboxMetricCollector.IncProcessedCount(outboxName, processed.Count);
+                dbSet.RemoveRange(processed);
             }
 
             if (retry.Count > 0)
             {
-                OutboxMetricCollector.IncRetriedCount(_outboxName, retry.Count);
-                await UpdateAsync(retry, transaction, outboxOptions, ct).ConfigureAwait(false);
+                OutboxMetricCollector.IncRetriedCount(outboxName, retry.Count);
+                dbSet.UpdateRange(retry);
             }
 
-            await transaction.CommitAsync(ct).ConfigureAwait(false);
+            await ctx.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
 
             OutboxItemsProcessResult(processed.Count, retry.Count);
         }
@@ -167,76 +168,26 @@ internal sealed partial class CompetingOutboxWorker : IOutboxWorker
         return outboxItem;
     }
 
-    private static Task<IEnumerable<TOutboxItem>> LockAndReturnItemsBatchAsync<TOutboxItem>(
-        NpgsqlTransaction transaction,
-        OutboxOptions outboxOptions
-    ) where TOutboxItem : class, IOutboxItem
-    {
-        var m = outboxOptions.GetDbMapping();
-
-        var sql = $"""
-                   SELECT * FROM "{m.TableName}"
-                   WHERE {m.RetryAfter} is null or {m.RetryAfter} <= @now
-                   ORDER BY {m.Id} ASC
-                   LIMIT {outboxOptions.OutboxItemsLimit}
-                   FOR UPDATE SKIP LOCKED;
-                   """;
-
-        return transaction.Connection!.QueryAsync<TOutboxItem>(sql, transaction: transaction,
-            param: new { now = DateTimeOffset.UtcNow }
-        );
-    }
-
-    private static async Task DeleteAsync<TOutboxItem>(
-        List<TOutboxItem> outboxItems,
-        NpgsqlTransaction transaction,
+    [SuppressMessage("Security", "EF1002:Risk of vulnerability to SQL injection.")]
+    private static async Task<IEnumerable<TOutboxItem>> LockAndReturnItemsBatchAsync<TOutboxItem>(
+        DbSet<TOutboxItem> dbSet,
         OutboxOptions outboxOptions,
         CancellationToken ct
     ) where TOutboxItem : class, IOutboxItem
     {
-        // TODO: Delete or mark as completed with drop partitions (daily/weekly)?
         var m = outboxOptions.GetDbMapping();
 
-        const string IDS = "ids";
-        var sql = $"""
-                   DELETE FROM "{m.TableName}"
-                   WHERE {m.Id} in (select * from unnest(@{IDS}));
-                   """;
-
-        await using var cmd = transaction.Connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.Add(new NpgsqlParameter<Guid[]>(IDS, outboxItems.Select(o => o.Id).ToArray()));
-
-        await cmd.ExecuteNonQueryAsync(ct);
-    }
-
-    private static async Task UpdateAsync(
-        List<IHasStatus> outboxItems,
-        NpgsqlTransaction transaction,
-        OutboxOptions outboxOptions,
-        CancellationToken ct
-    )
-    {
-        var m = outboxOptions.GetDbMapping();
-        var sql = $"""
-                   UPDATE "{m.TableName}"
-                   SET "{m.Status}" = data."{m.Status}",
-                       "{m.RetryCount}" = data."{m.RetryCount}",
-                       "{m.RetryAfter}"  = data."{m.RetryAfter}"
-                   FROM (SELECT * FROM unnest(@{m.Id}, @{m.Status}, @{m.RetryCount}, @{m.RetryAfter}))
-                                    AS data("{m.Id}", "{m.Status}", "{m.RetryCount}", "{m.RetryAfter}")
-                   WHERE "{m.TableName}"."{m.Id}" = data."{m.Id}";
-                   """;
-
-        await using var cmd = transaction.Connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.Add(new NpgsqlParameter<Guid[]>(m.Id, outboxItems.Select(e => e.Id).ToArray()));
-        cmd.Parameters.Add(new NpgsqlParameter<int[]>(m.Status, outboxItems.Select(e => (int)e.Status).ToArray()));
-        cmd.Parameters.Add(new NpgsqlParameter<int?[]>(m.RetryCount, outboxItems.Select(e => e.RetryCount).ToArray()));
-        cmd.Parameters.Add(
-            new NpgsqlParameter<DateTimeOffset?[]>(m.RetryAfter, outboxItems.Select(e => e.RetryAfter).ToArray()));
-
-        await cmd.ExecuteNonQueryAsync(ct);
+        return await dbSet.FromSqlRaw(
+                $"""
+                 SELECT * FROM {m.TableName}
+                 WHERE {m.RetryAfter} is null or {m.RetryAfter} <= '{DateTimeOffset.UtcNow:O}'::timestamptz
+                 ORDER BY {m.Id} ASC
+                 LIMIT {outboxOptions.OutboxItemsLimit}
+                 FOR UPDATE SKIP LOCKED;
+                 """)
+            .AsTracking()
+            .TagWith("CompetingOutboxWorker:LockAndReturnItemsBatchAsync")
+            .ToListAsync(ct);
     }
 
     [LoggerMessage(

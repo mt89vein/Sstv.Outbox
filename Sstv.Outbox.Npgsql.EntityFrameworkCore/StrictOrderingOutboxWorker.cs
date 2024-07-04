@@ -1,29 +1,35 @@
-using Dapper;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Npgsql;
+using System.Diagnostics.CodeAnalysis;
 
-namespace Sstv.Outbox.Npgsql;
+namespace Sstv.Outbox.Npgsql.EntityFrameworkCore;
 
 /// <summary>
 /// All workers active, but only one do his job at the same time.
 /// </summary>
-internal sealed partial class StrictOrderingOutboxWorker : IOutboxWorker
+public partial class StrictOrderingOutboxWorker<TDbContext> : IOutboxWorker
+    where TDbContext : DbContext
 {
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ILogger<StrictOrderingOutboxWorker> _logger;
-    private string? _outboxName;
+    private readonly ILogger<StrictOrderingOutboxWorker<TDbContext>> _logger;
 
+    /// <summary>
+    /// Creates new instance of <see cref="StrictOrderingOutboxWorker{TDbContext}"/>.
+    /// </summary>
+    /// <param name="scopeFactory">DI Scope factory.</param>
+    /// <param name="logger">Logger.</param>
     public StrictOrderingOutboxWorker(
         IServiceScopeFactory scopeFactory,
-        ILogger<StrictOrderingOutboxWorker>? logger = null
+        ILogger<StrictOrderingOutboxWorker<TDbContext>>? logger = null
     )
     {
         ArgumentNullException.ThrowIfNull(scopeFactory);
 
         _scopeFactory = scopeFactory;
-        _logger = logger ?? new NullLogger<StrictOrderingOutboxWorker>();
+        _logger = logger ?? new NullLogger<StrictOrderingOutboxWorker<TDbContext>>();
     }
 
     /// <summary>
@@ -34,18 +40,17 @@ internal sealed partial class StrictOrderingOutboxWorker : IOutboxWorker
     public async Task ProcessAsync<TOutboxItem>(OutboxOptions outboxOptions, CancellationToken ct = default)
         where TOutboxItem : class, IOutboxItem
     {
-        _outboxName ??= typeof(TOutboxItem).Name;
+        var outboxName = outboxOptions.GetOutboxName();
 
-        NpgsqlTransaction? transaction = null;
+        IDbContextTransaction? transaction = null;
         try
         {
-            await using var connection = await outboxOptions
-                .GetNpgsqlDataSource()
-                .OpenConnectionAsync(ct)
-                .ConfigureAwait(false);
+            await using var _ = _scopeFactory.CreateAsyncScope();
+            await using var ctx = _.ServiceProvider.GetRequiredService<TDbContext>();
+            var dbSet = ctx.Set<TOutboxItem>();
 
-            transaction = await connection.BeginTransactionAsync(ct).ConfigureAwait(false);
-            var items = await LockAndReturnItemsBatchAsync<TOutboxItem>(transaction, outboxOptions)
+            transaction = await ctx.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
+            var items = await LockAndReturnItemsBatchAsync(dbSet, outboxOptions, ct)
                 .ConfigureAwait(false);
 
             if (items.TryGetNonEnumeratedCount(out var count) && count == 0)
@@ -60,10 +65,10 @@ internal sealed partial class StrictOrderingOutboxWorker : IOutboxWorker
             if (count != 0)
             {
                 OutboxItemFetched(count);
-                OutboxMetricCollector.IncFetchedCount(_outboxName, count);
+                OutboxMetricCollector.IncFetchedCount(outboxName, count);
                 if (count == outboxOptions.OutboxItemsLimit)
                 {
-                    OutboxMetricCollector.IncFullBatchFetchedCount(_outboxName);
+                    OutboxMetricCollector.IncFullBatchFetchedCount(outboxName);
                 }
             }
 
@@ -72,8 +77,8 @@ internal sealed partial class StrictOrderingOutboxWorker : IOutboxWorker
             foreach (var item in items)
             {
                 await using var scope = _scopeFactory.CreateAsyncScope();
-
                 var handler = scope.ServiceProvider.GetRequiredService<IOutboxItemHandler<TOutboxItem>>();
+
                 try
                 {
                     var result = await handler.HandleAsync(item, outboxOptions, ct).ConfigureAwait(false);
@@ -98,11 +103,14 @@ internal sealed partial class StrictOrderingOutboxWorker : IOutboxWorker
 
             if (processed.Count > 0)
             {
-                OutboxMetricCollector.IncProcessedCount(_outboxName, processed.Count);
-                await DeleteAsync(processed, transaction, outboxOptions, ct).ConfigureAwait(false);
+                OutboxMetricCollector.IncProcessedCount(outboxName, processed.Count);
+
+                // TODO: Delete or mark as completed with drop partitions (daily/weekly)?
+                dbSet.RemoveRange(processed);
             }
 
-            await transaction.CommitAsync(ct).ConfigureAwait(false);
+            await ctx.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
 
             OutboxItemsProcessResult(processed.Count);
         }
@@ -124,46 +132,34 @@ internal sealed partial class StrictOrderingOutboxWorker : IOutboxWorker
         }
     }
 
-    private static Task<IEnumerable<TOutboxItem>> LockAndReturnItemsBatchAsync<TOutboxItem>(
-        NpgsqlTransaction transaction,
-        OutboxOptions outboxOptions
-    ) where TOutboxItem : class, IOutboxItem
-    {
-        var m = outboxOptions.GetDbMapping();
-        // TODO: отфильтровывать по метке - processed = false, если используем партиции
-
-        var sql = $"""
-                   SELECT * FROM "{m.TableName}"
-                   ORDER BY {m.Id} ASC
-                   LIMIT {outboxOptions.OutboxItemsLimit}
-                   FOR UPDATE NOWAIT;
-                   """;
-
-        return transaction.Connection!.QueryAsync<TOutboxItem>(sql, transaction: transaction);
-    }
-
-    private static async Task DeleteAsync<TOutboxItem>(
-        List<TOutboxItem> outboxItems,
-        NpgsqlTransaction transaction,
+    /// <summary>
+    /// Locks and return batch of outbox items.
+    /// </summary>
+    /// <param name="dbSet">DbSet.</param>
+    /// <param name="outboxOptions">Options.</param>
+    /// <param name="ct">Token for cancel operation.</param>
+    /// <typeparam name="TOutboxItem">Type of outbox item.</typeparam>
+    /// <returns>Locked outbox items.</returns>
+    [SuppressMessage("Security", "EF1002:Risk of vulnerability to SQL injection.")]
+    protected virtual async Task<IEnumerable<TOutboxItem>> LockAndReturnItemsBatchAsync<TOutboxItem>(
+        DbSet<TOutboxItem> dbSet,
         OutboxOptions outboxOptions,
         CancellationToken ct
     ) where TOutboxItem : class, IOutboxItem
     {
-        // TODO: Delete or mark as completed with drop partitions (daily/weekly)?
-
         var m = outboxOptions.GetDbMapping();
 
-        const string IDS = "ids";
-        var sql = $"""
-                   DELETE FROM "{m.TableName}"
-                   WHERE {m.Id} in (select * from unnest(@{IDS}));
-                   """;
-
-        await using var cmd = transaction.Connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.Add(new NpgsqlParameter<Guid[]>(IDS, outboxItems.Select(o => o.Id).ToArray()));
-
-        await cmd.ExecuteNonQueryAsync(ct);
+        return await dbSet.FromSqlRaw(
+                $"""
+                 SELECT * FROM {m.TableName}
+                 WHERE {m.RetryAfter} is null or {m.RetryAfter} <= '{DateTimeOffset.UtcNow:O}'::timestamptz
+                 ORDER BY {m.Id} ASC
+                 LIMIT {outboxOptions.OutboxItemsLimit}
+                 FOR UPDATE SKIP LOCKED;
+                 """)
+            .AsTracking()
+            .TagWith("CompetingOutboxWorker:LockAndReturnItemsBatchAsync")
+            .ToListAsync(ct);
     }
 
     [LoggerMessage(
@@ -188,14 +184,14 @@ internal sealed partial class StrictOrderingOutboxWorker : IOutboxWorker
     private partial void OutboxItemsEmpty();
 
     [LoggerMessage(
-        eventId: 4,
+        eventId: 3,
         level: LogLevel.Debug,
         message: "Outbox items fetched {Count}"
     )]
     private partial void OutboxItemFetched(int count);
 
     [LoggerMessage(
-        eventId: 5,
+        eventId: 4,
         level: LogLevel.Debug,
         message: "Outbox items processed {Processed}"
     )]

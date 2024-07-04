@@ -1,9 +1,11 @@
 using Dapper;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using Npgsql;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using Sstv.Outbox.Npgsql;
+using Sstv.Outbox.Npgsql.EntityFrameworkCore;
 using System.Text;
 using UUIDNext;
 
@@ -39,9 +41,17 @@ public class Program
 
         builder.Services.AddSingleton(datasource);
 
+        builder.Services.AddDbContext<ApplicationDbContext>((sp, options) =>
+        {
+            options.UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);
+            options.UseNpgsql(datasource);
+            options.UseSnakeCaseNamingConvention();
+        });
+
         builder.Services.AddOutboxItemBatch<MyOutboxItem, MyOutboxItemHandler>();
         builder.Services.AddOutboxItem<OneMoreOutboxItem, OneMoreOutboxItemHandler>();
         builder.Services.AddOutboxItem<StrictOutboxItem, StrictOutboxItemHandler>();
+        builder.Services.AddOutboxItem<ApplicationDbContext, EfOutboxItem, EfOutboxItemHandler>();
 
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen(options =>
@@ -56,7 +66,11 @@ public class Program
 
         var app = builder.Build();
 
-        app.MapGet("/push", async (CancellationToken ct = default) =>
+        using var scope = app.Services.CreateScope();
+        using var ctx = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        ctx.Database.Migrate();
+
+        app.MapGet("/MyOutboxItem/fill", async (CancellationToken ct = default) =>
         {
             await using var cmd = datasource.CreateCommand(
                 """
@@ -88,9 +102,9 @@ public class Program
             await cmd.ExecuteNonQueryAsync(ct);
 
             return Results.Ok();
-        });
+        }).WithTags(nameof(MyOutboxItem));
 
-        app.MapGet("/push2", async (CancellationToken ct = default) =>
+        app.MapGet("/OneMoreOutboxItem/fill", async (CancellationToken ct = default) =>
         {
             await using var cmd = datasource.CreateCommand(
                 """
@@ -122,9 +136,9 @@ public class Program
             await cmd.ExecuteNonQueryAsync(ct);
 
             return Results.Ok();
-        });
+        }).WithTags(nameof(OneMoreOutboxItem));
 
-        app.MapGet("/push3", async (CancellationToken ct = default) =>
+        app.MapGet("/StrictOutboxItem/fill", async (CancellationToken ct = default) =>
         {
             await using var cmd = datasource.CreateCommand(
                 """
@@ -156,11 +170,32 @@ public class Program
             await cmd.ExecuteNonQueryAsync(ct);
 
             return Results.Ok();
-        });
+        }).WithTags(nameof(StrictOutboxItem));
 
-        app.MapOutboxMaintenanceEndpoints<StrictOutboxItem>();
+        app.MapGet("/EfOutboxItem/fill", async (ApplicationDbContext ctx, CancellationToken ct = default) =>
+        {
+            var now = DateTimeOffset.UtcNow;
+            var items = Enumerable.Range(0, 100).Select(x => new EfOutboxItem
+            {
+                Id = Uuid.NewSequential(),
+                CreatedAt = now,
+                Status = OutboxItemStatus.Ready,
+                Headers = null,
+                RetryAfter = null,
+                RetryCount = null,
+                Data = Encoding.UTF8.GetBytes($"{x} hello bytes!")
+            }).ToArray();
+
+            ctx.EfOutboxItems.AddRange(items);
+
+            await ctx.SaveChangesAsync(ct);
+
+            return Results.Ok();
+        }).WithTags(nameof(EfOutboxItem));
+
         app.MapOutboxMaintenanceEndpoints<MyOutboxItem>();
         app.MapOutboxMaintenanceEndpoints<OneMoreOutboxItem>();
+        app.MapOutboxMaintenanceEndpoints<StrictOutboxItem>();
 
         app.UseSwagger();
 

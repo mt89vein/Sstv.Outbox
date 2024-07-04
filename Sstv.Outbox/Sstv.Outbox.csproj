@@ -8,6 +8,7 @@
     <ItemGroup>
       <FrameworkReference Include="Microsoft.AspNetCore.App"/>
       <InternalsVisibleTo Include="Sstv.Outbox.Npgsql" />
+      <InternalsVisibleTo Include="Sstv.Outbox.Npgsql.EntityFrameworkCore" />
       <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.3.4">
         <PrivateAssets>all</PrivateAssets>
         <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
