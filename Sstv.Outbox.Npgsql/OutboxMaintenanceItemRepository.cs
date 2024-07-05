@@ -42,7 +42,7 @@ public sealed class OutboxMaintenanceItemRepository<TOutboxItem> : IOutboxMainte
 
         var m = _outboxOptions.GetDbMapping();
         var sql = $"""
-                   SELECT * FROM "{m.TableName}"
+                   SELECT * FROM {m.QualifiedTableName}
                    ORDER BY {m.Id} ASC
                    LIMIT @take
                    OFFSET @skip;
@@ -61,7 +61,7 @@ public sealed class OutboxMaintenanceItemRepository<TOutboxItem> : IOutboxMainte
         await using var cmd = connection.CreateCommand();
 
         var m = _outboxOptions.GetDbMapping();
-        var sql = $"TRUNCATE TABLE {m.TableName};";
+        var sql = $"TRUNCATE TABLE {m.QualifiedTableName};";
 
         cmd.CommandText = sql;
         await cmd.ExecuteNonQueryAsync(ct);
@@ -80,7 +80,7 @@ public sealed class OutboxMaintenanceItemRepository<TOutboxItem> : IOutboxMainte
         var m = _outboxOptions.GetDbMapping();
         const string IDS = "ids";
         var sql = $"""
-                   DELETE FROM "{m.TableName}"
+                   DELETE FROM {m.QualifiedTableName}
                    WHERE {m.Id} in (select * from unnest(@{IDS}));
                    """;
 
@@ -104,11 +104,11 @@ public sealed class OutboxMaintenanceItemRepository<TOutboxItem> : IOutboxMainte
         const string IDS = "ids";
         const string STATUS = "status";
         var sql = $"""
-                   UPDATE "{m.TableName}"
+                   UPDATE {m.QualifiedTableName}
                    SET "{m.Status}" = @{STATUS},
                        "{m.RetryCount}" = null,
                        "{m.RetryAfter}" = null
-                   WHERE "{m.TableName}"."{m.Id}" = ANY(@{IDS});
+                   WHERE {m.QualifiedTableName}."{m.Id}" = ANY(@{IDS});
                    """;
 
         cmd.CommandText = sql;

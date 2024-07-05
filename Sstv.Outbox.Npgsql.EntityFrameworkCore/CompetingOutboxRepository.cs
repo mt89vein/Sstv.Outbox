@@ -50,7 +50,7 @@ public sealed class CompetingOutboxRepository<TDbContext, TOutboxItem> : IOutbox
             .Set<TOutboxItem>()
             .FromSqlRaw(
                 $"""
-                 SELECT * FROM {m.TableName}
+                 SELECT * FROM {m.QualifiedTableName}
                  WHERE {m.RetryAfter} is null or {m.RetryAfter} <= '{DateTimeOffset.UtcNow:O}'::timestamptz
                  ORDER BY {m.Id} ASC
                  LIMIT {_options.OutboxItemsLimit}

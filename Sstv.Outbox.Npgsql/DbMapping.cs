@@ -9,9 +9,14 @@ namespace Sstv.Outbox.Npgsql;
 internal sealed class DbMapping
 {
     /// <summary>
+    /// Schema name where outbox table located.
+    /// </summary>
+    public string SchemaName { get; init; } = null!;
+
+    /// <summary>
     /// The name of outbox table.
     /// </summary>
-    public string TableName { get; set; } = null!;
+    public string TableName { get; init; } = null!;
 
     /// <summary>
     /// Mapping of columns.
@@ -39,18 +44,29 @@ internal sealed class DbMapping
     internal string RetryCount => ColumnNames[nameof(IHasStatus.RetryCount)];
 
     /// <summary>
+    /// Table schema name + table name.
+    /// </summary>
+    internal string QualifiedTableName { get; init; } = null!;
+
+    /// <summary>
     /// Default db mapping.
     /// </summary>
+    /// <param name="schemaName">Database schema name where outbox table located..</param>
     /// <param name="tableName">OutboxItem table name</param>
     /// <returns>Mapping to db.</returns>
-    public static DbMapping GetDefault(string tableName)
+    public static DbMapping GetDefault(string schemaName, string tableName)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(schemaName);
         ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
 
         var culture = CultureInfo.InvariantCulture;
+        tableName = NpgsqlSnakeCaseNameTranslator.ConvertToSnakeCase(tableName, culture);
+
         return new DbMapping
         {
-            TableName = NpgsqlSnakeCaseNameTranslator.ConvertToSnakeCase(tableName, culture),
+            SchemaName = schemaName,
+            TableName = tableName,
+            QualifiedTableName = schemaName + "." + $"\"{tableName}\"",
             ColumnNames =
             {
                 [nameof(IOutboxItem.Id)] = NpgsqlSnakeCaseNameTranslator.ConvertToSnakeCase(nameof(IOutboxItem.Id), culture),

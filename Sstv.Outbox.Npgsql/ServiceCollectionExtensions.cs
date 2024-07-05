@@ -19,6 +19,7 @@ public static class ServiceCollectionExtensions
     /// Adds <typeparamref name="TOutboxItem"/> handling services.
     /// </summary>
     /// <param name="services">Service registrator.</param>
+    /// <param name="schemaName">Database schema name where outbox table located. By default 'public'.</param>
     /// <param name="tableName">Table name. By default name of type in plural.</param>
     /// <param name="npgsqlDataSource">DbConnection datasource.</param>
     /// <param name="handlerLifetime">Which lifetime should be handler.</param>
@@ -27,6 +28,7 @@ public static class ServiceCollectionExtensions
     /// <typeparam name="TOutboxItemHandler">Outbox item handler type.</typeparam>
     public static void AddOutboxItem<TOutboxItem, TOutboxItemHandler>(
         this IServiceCollection services,
+        string? schemaName = null,
         string? tableName = null,
         NpgsqlDataSource? npgsqlDataSource = null,
         ServiceLifetime handlerLifetime = ServiceLifetime.Transient,
@@ -50,13 +52,12 @@ public static class ServiceCollectionExtensions
             .BindConfiguration($"Outbox:{outboxName}")
             .Configure<IServiceProvider>((o, sp) =>
             {
-                configure?.Invoke(o);
-
                 o.SetNpgsqlDataSource(npgsqlDataSource ?? sp.GetRequiredService<NpgsqlDataSource>());
-                o.SetDbMapping(DbMapping.GetDefault(tableName ?? outboxName.Pluralize()));
+                o.SetDbMapping(DbMapping.GetDefault(schemaName ?? "public", tableName ?? outboxName.Pluralize()));
                 o.SetOutboxName(outboxName);
 
                 o.WorkerType ??= NpgsqlWorkerTypes.COMPETING;
+                configure?.Invoke(o);
             })
             .ValidateDataAnnotations()
             .ValidateOnStart();
@@ -81,6 +82,7 @@ public static class ServiceCollectionExtensions
     /// Adds <typeparamref name="TOutboxItem"/> handling services.
     /// </summary>
     /// <param name="services">Service registrator.</param>
+    /// <param name="schemaName">Database schema name where outbox table located. By default 'public'.</param>
     /// <param name="tableName">Table name. By default name of type in plural.</param>
     /// <param name="npgsqlDataSource">DbConnection datasource.</param>
     /// <param name="handlerLifetime">Which lifetime should be handler.</param>
@@ -89,6 +91,7 @@ public static class ServiceCollectionExtensions
     /// <typeparam name="TOutboxItemHandler">Outbox item handler type.</typeparam>
     public static void AddOutboxItemBatch<TOutboxItem, TOutboxItemHandler>(
         this IServiceCollection services,
+        string? schemaName = null,
         string? tableName = null,
         NpgsqlDataSource? npgsqlDataSource = null,
         ServiceLifetime handlerLifetime = ServiceLifetime.Transient,
@@ -112,13 +115,12 @@ public static class ServiceCollectionExtensions
             .BindConfiguration($"Outbox:{outboxName}")
             .Configure<IServiceProvider>((o, sp) =>
             {
-                configure?.Invoke(o);
-
                 o.SetNpgsqlDataSource(npgsqlDataSource ?? sp.GetRequiredService<NpgsqlDataSource>());
-                o.SetDbMapping(DbMapping.GetDefault(tableName ?? outboxName.Pluralize()));
+                o.SetDbMapping(DbMapping.GetDefault(schemaName ?? "public", tableName ?? outboxName.Pluralize()));
                 o.SetOutboxName(outboxName);
 
                 o.WorkerType ??= NpgsqlWorkerTypes.BATCH_COMPETING;
+                configure?.Invoke(o);
             })
             .ValidateDataAnnotations()
             .ValidateOnStart();

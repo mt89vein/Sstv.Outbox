@@ -11,9 +11,14 @@ namespace Sstv.Outbox.Npgsql.EntityFrameworkCore;
 internal sealed class DbMapping
 {
     /// <summary>
+    /// Schema name where outbox table located.
+    /// </summary>
+    public string SchemaName { get; init; } = null!;
+
+    /// <summary>
     /// The name of outbox table.
     /// </summary>
-    public string TableName { get; set; } = null!;
+    public string TableName { get; init; } = null!;
 
     /// <summary>
     /// Mapping of columns.
@@ -41,6 +46,11 @@ internal sealed class DbMapping
     internal string RetryCount => ColumnNames[nameof(IHasStatus.RetryCount)];
 
     /// <summary>
+    /// Table schema name + table name.
+    /// </summary>
+    internal string QualifiedTableName { get; init; } = null!;
+
+    /// <summary>
     /// Default db mapping.
     /// </summary>
     /// <param name="dbContext">DbContext.</param>
@@ -52,13 +62,16 @@ internal sealed class DbMapping
 
         var dbSet = dbContext.Set<TOutboxItem>();
 
-        var tableName = dbSet.EntityType.GetAnnotation(RelationalAnnotationNames.TableName).Value?.ToString()
-                        ?? dbSet.EntityType.GetTableName() ??
+        var tableName = dbSet.EntityType.GetTableName() ??
                         throw new InvalidOperationException($"Can't get table name for entity of type {typeof(TOutboxItem)} in {dbContext.GetType()}");
+
+        var schemaName = dbSet.EntityType.GetDefaultSchema() ?? "public";
 
         return new DbMapping
         {
+            SchemaName = schemaName,
             TableName = tableName,
+            QualifiedTableName = schemaName + "." + $"\"{tableName}\"",
             ColumnNames =
             {
                 [nameof(IOutboxItem.Id)] = GetColumnName(dbSet, nameof(IOutboxItem.Id)),

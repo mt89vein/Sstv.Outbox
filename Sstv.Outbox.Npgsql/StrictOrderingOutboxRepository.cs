@@ -1,7 +1,6 @@
 using Dapper;
 using Microsoft.Extensions.Options;
 using Npgsql;
-using System.Data.Common;
 
 namespace Sstv.Outbox.Npgsql;
 
@@ -27,41 +26,28 @@ public sealed class StrictOrderingOutboxRepository<TOutboxItem> : IOutboxReposit
     }
 
     /// <summary>
-    /// Starts transaction.
-    /// </summary>
-    /// <param name="ct">Token for cancel operation.</param>
-    /// <returns>Transaction.</returns>
-    public async Task<DbTransaction> BeginTransactionAsync(CancellationToken ct = default)
-    {
-        _connection = await _options.GetNpgsqlDataSource().OpenConnectionAsync(ct);
-        return _transaction = await _connection.BeginTransactionAsync(ct);
-    }
-
-    /// <summary>
     /// Lock, fetch and return outbox items.
     /// </summary>
     /// <param name="ct">Token for cancel operation.</param>
     /// <returns>OutboxItems.</returns>
-    public Task<IEnumerable<TOutboxItem>> LockAndReturnItemsBatchAsync(CancellationToken ct = default)
+    public async Task<IEnumerable<TOutboxItem>> LockAndReturnItemsBatchAsync(CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
 
-        if (_transaction is null)
-        {
-            throw new InvalidOperationException("Transaction was null");
-        }
+        _connection = await _options.GetNpgsqlDataSource().OpenConnectionAsync(ct);
+        _transaction = await _connection.BeginTransactionAsync(ct);
 
         var m = _options.GetDbMapping();
         // TODO: отфильтровывать по метке - processed = false, если используем партиции
 
         var sql = $"""
-                   SELECT * FROM "{m.TableName}"
+                   SELECT * FROM {m.QualifiedTableName}
                    ORDER BY {m.Id} ASC
                    LIMIT {_options.OutboxItemsLimit}
                    FOR UPDATE NOWAIT;
                    """;
 
-        return _transaction.Connection!.QueryAsync<TOutboxItem>(sql, transaction: _transaction);
+        return await _connection.QueryAsync<TOutboxItem>(sql, transaction: _transaction);
     }
 
     /// <summary>
@@ -94,7 +80,7 @@ public sealed class StrictOrderingOutboxRepository<TOutboxItem> : IOutboxReposit
         // TODO: Delete or mark as completed with drop partitions (daily/weekly)?
         const string IDS = "ids";
         var sql = $"""
-                   DELETE FROM "{m.TableName}"
+                   DELETE FROM {m.QualifiedTableName}
                    WHERE {m.Id} in (select * from unnest(@{IDS}));
                    """;
 

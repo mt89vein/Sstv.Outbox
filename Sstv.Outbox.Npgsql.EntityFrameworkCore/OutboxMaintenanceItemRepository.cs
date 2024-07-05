@@ -78,7 +78,7 @@ public sealed class OutboxMaintenanceItemRepository<TDbContext, TOutboxItem> : I
         await using var cmd = connection.CreateCommand();
 
         var m = _outboxOptions.GetDbMapping();
-        var sql = $"TRUNCATE TABLE {m.TableName};";
+        var sql = $"TRUNCATE TABLE {m.QualifiedTableName};";
 
         cmd.CommandText = sql;
         await cmd.ExecuteNonQueryAsync(ct);

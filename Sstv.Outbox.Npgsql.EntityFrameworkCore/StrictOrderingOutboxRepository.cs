@@ -49,7 +49,7 @@ public sealed class StrictOrderingOutboxRepository<TDbContext, TOutboxItem> : IO
 
         return await dbSet.FromSqlRaw(
                 $"""
-                 SELECT * FROM {m.TableName}
+                 SELECT * FROM {m.QualifiedTableName}
                  WHERE {m.RetryAfter} is null or {m.RetryAfter} <= '{DateTimeOffset.UtcNow:O}'::timestamptz
                  ORDER BY {m.Id} ASC
                  LIMIT {_options.OutboxItemsLimit}

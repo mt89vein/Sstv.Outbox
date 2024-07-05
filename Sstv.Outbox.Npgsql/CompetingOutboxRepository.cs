@@ -40,7 +40,7 @@ public sealed class CompetingOutboxRepository<TOutboxItem> : IOutboxRepository<T
         var m = _options.GetDbMapping();
 
         var sql = $"""
-                   SELECT * FROM "{m.TableName}"
+                   SELECT * FROM {m.QualifiedTableName}
                    WHERE {m.RetryAfter} is null or {m.RetryAfter} <= @now
                    ORDER BY {m.Id} ASC
                    LIMIT {_options.OutboxItemsLimit}
@@ -84,7 +84,7 @@ public sealed class CompetingOutboxRepository<TOutboxItem> : IOutboxRepository<T
             // TODO: Delete or mark as completed with drop partitions (daily/weekly)?
             const string IDS = "ids";
             var sql = $"""
-                       DELETE FROM "{m.TableName}"
+                       DELETE FROM {m.QualifiedTableName}
                        WHERE {m.Id} in (select * from unnest(@{IDS}));
                        """;
 
@@ -98,13 +98,13 @@ public sealed class CompetingOutboxRepository<TOutboxItem> : IOutboxRepository<T
         if (retried.Count > 0)
         {
             var sql = $"""
-                       UPDATE "{m.TableName}"
+                       UPDATE {m.QualifiedTableName}
                        SET "{m.Status}" = data."{m.Status}",
                            "{m.RetryCount}" = data."{m.RetryCount}",
                            "{m.RetryAfter}"  = data."{m.RetryAfter}"
                        FROM (SELECT * FROM unnest(@{m.Id}, @{m.Status}, @{m.RetryCount}, @{m.RetryAfter}))
                                         AS data("{m.Id}", "{m.Status}", "{m.RetryCount}", "{m.RetryAfter}")
-                       WHERE "{m.TableName}"."{m.Id}" = data."{m.Id}";
+                       WHERE {m.QualifiedTableName}."{m.Id}" = data."{m.Id}";
                        """;
 
             await using var cmd = _connection!.CreateCommand();

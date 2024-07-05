@@ -47,14 +47,13 @@ public static class ServiceCollectionExtensions
             .BindConfiguration($"Outbox:{outboxName}")
             .Configure<IServiceProvider>((o, sp) =>
             {
-                configure?.Invoke(o);
-
                 using var scope = sp.CreateScope();
                 using var dbContext = scope.ServiceProvider.GetRequiredService<TDbContext>();
                 o.SetDbMapping(DbMapping.GetFor<TOutboxItem>(dbContext));
                 o.SetOutboxName(outboxName);
 
                 o.WorkerType ??= EfCoreWorkerTypes.COMPETING;
+                configure?.Invoke(o);
             })
             .ValidateDataAnnotations()
             .ValidateOnStart();
@@ -110,14 +109,13 @@ public static class ServiceCollectionExtensions
             .BindConfiguration($"Outbox:{outboxName}")
             .Configure<IServiceProvider>((o, sp) =>
             {
-                configure?.Invoke(o);
-
                 using var scope = sp.CreateScope();
                 using var dbContext = scope.ServiceProvider.GetRequiredService<TDbContext>();
                 o.SetDbMapping(DbMapping.GetFor<TOutboxItem>(dbContext));
                 o.SetOutboxName(outboxName);
 
                 o.WorkerType ??= EfCoreWorkerTypes.BATCH_COMPETING;
+                configure?.Invoke(o);
             })
             .ValidateDataAnnotations()
             .ValidateOnStart();
