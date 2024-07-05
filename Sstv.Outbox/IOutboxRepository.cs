@@ -23,6 +23,6 @@ public interface IOutboxRepository<TOutboxItem> : IDisposable, IAsyncDisposable
     Task SaveAsync(
         IReadOnlyCollection<TOutboxItem> completed,
         IReadOnlyCollection<TOutboxItem> retried,
-        CancellationToken ct
+        CancellationToken ct = default
     );
 }

@@ -115,6 +115,8 @@ public sealed class CompetingOutboxRepository<TOutboxItem> : IOutboxRepository<T
             cmd.Parameters.Add(new NpgsqlParameter<DateTimeOffset?[]>(m.RetryAfter, retried.Select(e => ((IHasStatus)e).RetryAfter).ToArray()));
             await cmd.ExecuteNonQueryAsync(ct);
         }
+
+        await _transaction.CommitAsync(ct);
     }
 
     /// <summary>

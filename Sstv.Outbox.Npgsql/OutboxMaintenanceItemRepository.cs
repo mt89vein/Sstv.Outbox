@@ -5,10 +5,10 @@ using Npgsql;
 namespace Sstv.Outbox.Npgsql;
 
 /// <summary>
-/// Outbox items repository.
+/// Outbox items maintenance repository.
 /// </summary>
 /// <typeparam name="TOutboxItem">OutboxItem.</typeparam>
-internal sealed class OutboxMaintenanceItemRepository<TOutboxItem> : IOutboxMaintenanceRepository<TOutboxItem>
+public sealed class OutboxMaintenanceItemRepository<TOutboxItem> : IOutboxMaintenanceRepository<TOutboxItem>
     where TOutboxItem : class, IOutboxItem
 {
     /// <summary>
@@ -33,8 +33,8 @@ internal sealed class OutboxMaintenanceItemRepository<TOutboxItem> : IOutboxMain
     /// <param name="ct">Token for cancel operation.</param>
     /// <returns>Page of OutboxItems.</returns>
     public async Task<IEnumerable<TOutboxItem>> GetChunkAsync(
-        int skip = 0,
-        int take = 100,
+        int skip,
+        int take,
         CancellationToken ct = default
     )
     {

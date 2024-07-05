@@ -62,9 +62,15 @@ public static class ServiceCollectionExtensions
         services.Add(ServiceDescriptor.Describe(typeof(IOutboxItemHandler<TOutboxItem>), typeof(TOutboxItemHandler),
             handlerLifetime));
         services.TryAddTransient<IOutboxItemHandler<TOutboxItem>, TOutboxItemHandler>();
-        // services.TryAddSingleton<IOutboxRepository<TOutboxItem>, OutboxItemRepository<TOutboxItem>>();
-        services.TryAddKeyedTransient<IOutboxWorker, StrictOrderingOutboxWorker<TDbContext>>(EfCoreWorkerTypes.STRICT_ORDERING);
-        services.TryAddKeyedTransient<IOutboxWorker, CompetingOutboxWorker<TDbContext>>(EfCoreWorkerTypes.COMPETING);
+
+        services.TryAddScoped<IOutboxMaintenanceRepository<TOutboxItem>, OutboxMaintenanceItemRepository<TDbContext, TOutboxItem>>();
+
+        services.TryAddKeyedTransient<IOutboxRepository<TOutboxItem>, StrictOrderingOutboxRepository<TDbContext, TOutboxItem>>(EfCoreWorkerTypes.STRICT_ORDERING);
+        services.TryAddKeyedTransient<IOutboxWorker, StrictOrderingOutboxWorker>(EfCoreWorkerTypes.STRICT_ORDERING);
+
+        services.TryAddKeyedTransient<IOutboxRepository<TOutboxItem>, CompetingOutboxRepository<TDbContext, TOutboxItem>>(EfCoreWorkerTypes.COMPETING);
+        services.TryAddKeyedTransient<IOutboxWorker, CompetingOutboxWorker>(EfCoreWorkerTypes.COMPETING);
+
         services.TryAddSingleton(TimeProvider.System);
         services.AddHostedService<OutboxBackgroundService<TOutboxItem>>();
 
@@ -118,8 +124,10 @@ public static class ServiceCollectionExtensions
 
         services.TryAdd(ServiceDescriptor.Describe(typeof(IOutboxItemBatchHandler<TOutboxItem>),
             typeof(TOutboxItemHandler), handlerLifetime));
-        // services.TryAddSingleton<IOutboxRepository<TOutboxItem>, OutboxItemRepository<TOutboxItem>>();
-        // services.TryAddKeyedTransient<IOutboxWorker, BatchCompetingOutboxWorker>(EfCoreWorkerTypes.BATCH_COMPETING);
+
+        services.TryAddKeyedTransient<IOutboxRepository<TOutboxItem>, CompetingOutboxRepository<TDbContext, TOutboxItem>>(EfCoreWorkerTypes.COMPETING);
+        services.TryAddKeyedTransient<IOutboxWorker, BatchCompetingOutboxWorker>(EfCoreWorkerTypes.COMPETING);
+
         services.TryAddSingleton(TimeProvider.System);
         services.AddHostedService<OutboxBackgroundService<TOutboxItem>>();
 

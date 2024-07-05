@@ -196,6 +196,7 @@ public class Program
         app.MapOutboxMaintenanceEndpoints<MyOutboxItem>();
         app.MapOutboxMaintenanceEndpoints<OneMoreOutboxItem>();
         app.MapOutboxMaintenanceEndpoints<StrictOutboxItem>();
+        app.MapOutboxMaintenanceEndpoints<EfOutboxItem>();
 
         app.UseSwagger();
 

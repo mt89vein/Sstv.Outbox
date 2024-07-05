@@ -107,15 +107,18 @@ public sealed class StrictOrderingOutboxRepository<TOutboxItem> : IOutboxReposit
         await _transaction.CommitAsync(ct);
     }
 
-    /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.</summary>
+    /// <summary>
+    /// Cleans resources.
+    /// </summary>
     public void Dispose()
     {
         _connection?.Dispose();
         _transaction?.Dispose();
     }
 
-    /// <summary>Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources asynchronously.</summary>
-    /// <returns>A task that represents the asynchronous dispose operation.</returns>
+    /// <summary>
+    /// Cleans resources.
+    /// </summary>
     public async ValueTask DisposeAsync()
     {
         if (_connection != null)
