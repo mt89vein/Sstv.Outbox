@@ -1,11 +1,23 @@
 Sstv.Outbox
 ========
 
+![Pipeline](https://github.com/mt89vein/Sstv.Outbox/workflows/publish/badge.svg)
+[![Coverage Status](https://coveralls.io/repos/github/mt89vein/Sstv.Outbox/badge.svg?branch=master)](https://coveralls.io/github/mt89vein/Sstv.Outbox?branch=master)
+
 Sstv.Outbox is the set of libraries that implements [Transactional Outbox Pattern](https://microservices.io/patterns/data/transactional-outbox.html).
 It contains several abstractions that provide ability to change processing behavior.
 
 This library can be used not only for producing messages for Kafka, but you can also make HTTP calls or whatever else.
 The library has extensibility points. You can replace almost any functional part.
+
+This repository contains several NuGet packages:
+
+| Package                                                                                | Version                                                                                                                                                                                | Description                                                       |
+|----------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------|
+| [Sstv.Outbox](./src/Sstv.Outbox)                                                       | [![NuGet version](https://img.shields.io/nuget/v/Sstv.Outbox.svg?style=flat-square)](https://www.nuget.org/packages/Sstv.Outbox)                                                       | Core lib that contains abstractions and some base implementations |
+| [Sstv.Outbox.EntityFrameworkCore.Npgsql](./src/Sstv.Outbox.EntityFrameworkCore.Npgsql) | [![NuGet version](https://img.shields.io/nuget/v/Sstv.Outbox.EntityFrameworkCore.Npgsql.svg?style=flat-square)](https://www.nuget.org/packages/Sstv.Outbox.EntityFrameworkCore.Npgsql) | Implementation using EntityFrameworkCore.Npgsql                   |
+| [Sstv.Outbox.Npgsql](./src/Sstv.Outbox.Npgsql)                                         | [![NuGet version](https://img.shields.io/nuget/v/Sstv.Outbox.Npgsql.svg?style=flat-square)](https://www.nuget.org/packages/Sstv.Outbox.Npgsql)                                         | Implementation using Npgsql                                       |
+| [Sstv.Outbox.Kafka](./Sstv.Outbox.Kafka)                                               | [![NuGet version](https://img.shields.io/nuget/v/Sstv.Outbox.Kafka.svg?style=flat-square)](https://www.nuget.org/packages/Sstv.Outbox.Kafka)                                           | OutboxItemHandler implementation for producing to Kafka           |
 
 ### Why?
 
