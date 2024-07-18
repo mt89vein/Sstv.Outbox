@@ -15,15 +15,17 @@ internal sealed class NotificationMessageProducerSpy<T> : IOutboxItemHandler<T>
 
     public int PublishedCount => _publishedCount;
 
-    public Task<OutboxItemHandleResult> HandleAsync(
+    public async Task<OutboxItemHandleResult> HandleAsync(
         T outboxItem,
         OutboxOptions options,
         CancellationToken ct = default
     )
     {
+        await Task.Delay(TimeSpan.FromMilliseconds(5), ct);
+
         Interlocked.Increment(ref _publishedCount);
         _concurrentQueue.Enqueue(outboxItem.Id);
 
-        return Task.FromResult(OutboxItemHandleResult.Ok);
+        return OutboxItemHandleResult.Ok;
     }
 }

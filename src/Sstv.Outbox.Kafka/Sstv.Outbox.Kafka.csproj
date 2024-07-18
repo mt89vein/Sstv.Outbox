@@ -4,7 +4,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <PackageId>Sstv.Outbox.Kafka</PackageId>
     <Description>.NET Library that implements Transactional Outbox handler for producing messages to kafka.</Description>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageReadmeFile>readme.md</PackageReadmeFile>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
@@ -16,6 +16,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Sstv.Outbox\Sstv.Outbox.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="./../../readme.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>

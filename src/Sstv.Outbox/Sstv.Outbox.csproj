@@ -3,8 +3,8 @@
     <PropertyGroup>
       <TargetFramework>net8.0</TargetFramework>
       <PackageId>Sstv.Outbox</PackageId>
-      <Description>.NET Библиотека с реализацией паттерна Transactional Outbox.</Description>
-      <PackageReadmeFile>README.md</PackageReadmeFile>
+      <Description>.NET Library that implements Transactional Outbox pattern.</Description>
+      <PackageReadmeFile>readme.md</PackageReadmeFile>
       <GenerateDocumentationFile>true</GenerateDocumentationFile>
       <IsPackable>true</IsPackable>
     </PropertyGroup>
@@ -23,7 +23,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <None Include="./../../README.md" Pack="true" PackagePath="\" />
+      <None Include="./../../readme.md" Pack="true" PackagePath="\" />
     </ItemGroup>
 
 </Project>
