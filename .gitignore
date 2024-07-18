@@ -329,3 +329,4 @@ ASALocalRun/
 #Ocelot.json
 ocelot.json
 data/
+tests/Sstv.Outbox.IntegrationTests/coverage.info
