@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -11,17 +12,18 @@ using Uuid = UUIDNext.Uuid;
 namespace Sstv.Outbox.IntegrationTests;
 
 /// <summary>
-/// Тесты на воркер outbox.
+/// Tests for worker with EntityFrameworkCore.
 /// </summary>
 [TestOf(typeof(IOutboxWorker))]
 [TestOf(typeof(StrictOrderingOutboxWorker))]
 [TestOf(typeof(CompetingOutboxWorker))]
 [TestOf(typeof(StrictOrderingOutboxRepository<,>))]
 [TestOf(typeof(CompetingOutboxRepository<,>))]
+[SuppressMessage("Naming", "CA1707:Identifiers should not contain underscore symbols")]
 public sealed partial class EntityFrameworkOutboxWorkerTests
 {
     /// <summary>
-    /// Очищает БД перед каждым тестом.
+    /// Cleans db before every test.
     /// </summary>
     [SetUp]
     public Task Setup()
@@ -30,10 +32,10 @@ public sealed partial class EntityFrameworkOutboxWorkerTests
     }
 
     /// <summary>
-    /// Тест на стандартную обработку - получили сообщения из таблицы, отправили в обработку.
+    /// Happy path. Fetch data from table and push to outbox item handler.
     /// </summary>
     [Test]
-    public async Task ShouldPublishMessagesFromOutbox()
+    public async Task Worker_should_process_outbox_item_table_when_process_async_called()
     {
         // arrange
         var spy = new NotificationMessageProducerSpy<KafkaEfOutboxItem>();
@@ -44,7 +46,7 @@ public sealed partial class EntityFrameworkOutboxWorkerTests
         var worker = factory.Services.GetRequiredKeyedService<IOutboxWorker>(options.WorkerType);
 
         Assume.That(await GetCountOfOutboxItems(factory), Is.Zero,
-            $"Сообщений в таблице {options.GetDbMapping().QualifiedTableName} быть не должно");
+            $"Table {options.GetDbMapping().QualifiedTableName} should be empty before act");
 
         await AddItemsAsync(factory, options.OutboxItemsLimit);
 
@@ -55,20 +57,19 @@ public sealed partial class EntityFrameworkOutboxWorkerTests
         await Assert.MultipleAsync(async () =>
         {
             Assert.That(await GetCountOfOutboxItems(factory), Is.Zero,
-                $"Сообщений в таблице {options.GetDbMapping().QualifiedTableName} быть не должно");
+                $"Table {options.GetDbMapping().QualifiedTableName} should be empty after act");
 
             Assert.That(spy.PublishedCount, Is.EqualTo(options.OutboxItemsLimit),
-                "Количество опубликованных сообщений не совпадает");
+                "The count of published messages doesn't match with expected");
         });
     }
 
     /// <summary>
-    /// Тест при котором проверяется конкурентная работа нескольких воркеров одновременно
-    /// в режиме strict_ordering.
+    /// This test checks concurrent workers in strict ordering mode that try to fetch and process data at the same time.
     /// </summary>
     [Test]
     [TestCase(10)]
-    public async Task ShouldHandleConcurrentWorkerRequestsInStrictOrderingMode(int competingWorkersCount)
+    public async Task Should_handle_concurrent_worker_requests_in_strict_ordering_mode(int competingWorkersCount)
     {
         // arrange
         var spy = new NotificationMessageProducerSpy<KafkaEfOutboxItem>();
@@ -82,7 +83,7 @@ public sealed partial class EntityFrameworkOutboxWorkerTests
         var additionalItemsInTable = 1;
 
         Assume.That(await GetCountOfOutboxItems(factory), Is.Zero,
-            $"Сообщений в таблице {options.GetDbMapping().QualifiedTableName} быть не должно");
+            $"Table {options.GetDbMapping().QualifiedTableName} should be empty before act");
 
         await AddItemsAsync(factory, options.OutboxItemsLimit + additionalItemsInTable);
 
@@ -95,20 +96,19 @@ public sealed partial class EntityFrameworkOutboxWorkerTests
         await Assert.MultipleAsync(async () =>
         {
             Assert.That(await GetCountOfOutboxItems(factory), Is.EqualTo(additionalItemsInTable),
-                "Должно быть одно сообщение, так как работает только 1 воркер");
+                "Expected to be one message in the table after act");
 
             Assert.That(spy.PublishedCount, Is.EqualTo(expectedPublishedMessagesCount),
-                "Количество опубликованных сообщений не совпадает");
+                "The count of published messages doesn't match with expected");
         });
     }
 
     /// <summary>
-    /// Тест при котором проверяется конкурентная работа нескольких воркеров одновременно
-    /// в режиме competing.
+    /// This test checks concurrent workers in competing mode that try to fetch and process data at the same time.
     /// </summary>
     [Test]
     [TestCase(10)]
-    public async Task ShouldHandleConcurrentWorkerRequestsInCompetingMode(int competingWorkersCount)
+    public async Task Should_handle_concurrent_worker_requests_in_competing_mode(int competingWorkersCount)
     {
         // arrange
         var spy = new NotificationMessageProducerSpy<KafkaEfOutboxItem>();
@@ -123,7 +123,7 @@ public sealed partial class EntityFrameworkOutboxWorkerTests
         var additionalItemsInTable = 1;
 
         Assume.That(await GetCountOfOutboxItems(factory), Is.Zero,
-            $"Сообщений в таблице {options.GetDbMapping().QualifiedTableName} быть не должно");
+            $"Table {options.GetDbMapping().QualifiedTableName} should be empty before act");
 
         await AddItemsAsync(factory, (options.OutboxItemsLimit * competingWorkersCount) + additionalItemsInTable);
 
@@ -136,25 +136,25 @@ public sealed partial class EntityFrameworkOutboxWorkerTests
         await Assert.MultipleAsync(async () =>
         {
             Assert.That(await GetCountOfOutboxItems(factory), Is.EqualTo(additionalItemsInTable),
-                "Количество остаточных сообщений не совпадает");
+                "The count of expected messages in the table after act not matched");
 
             Assert.That(spy.PublishedCount, Is.EqualTo(expectedPublishedMessagesCount),
-                "Количество опубликованных сообщений не совпадает");
+                "The count of published messages doesn't match with expected");
         });
     }
 
     /// <summary>
-    /// Тест, который обрабатывает ретраи в случае ошибок в обработчике.
+    /// We need to retry processing of outbox item when error occured or retry result returned.
     /// </summary>
     [Test]
     [TestCase(OutboxItemHandleResult.Retry)]
     [TestCase(null)]
-    public async Task ShouldRetryOnErrorInCompetingMode(OutboxItemHandleResult? result)
+    public async Task Should_retry_on_error_in_competing_mode(OutboxItemHandleResult? result)
     {
         // arrange
         var spy = new NotificationMessageErrorProducerMock<KafkaEfOutboxItem>(_ =>
         {
-            return result ?? throw new Exception("Тестом заложено, что не удалось опубликовать");
+            return result ?? throw new Exception("Test configured to throw an exception");
         });
         await using var factory = CreateWebApp(spy);
 
@@ -164,7 +164,7 @@ public sealed partial class EntityFrameworkOutboxWorkerTests
         var worker = factory.Services.GetRequiredKeyedService<IOutboxWorker>(options.WorkerType);
 
         Assume.That(await GetCountOfOutboxItems(factory), Is.Zero,
-            $"Сообщений в таблице {options.GetDbMapping().QualifiedTableName} быть не должно");
+            $"Table {options.GetDbMapping().QualifiedTableName} should be empty before act");
 
         var addedItems = await AddItemsAsync(factory, options.OutboxItemsLimit);
 
@@ -173,15 +173,15 @@ public sealed partial class EntityFrameworkOutboxWorkerTests
 
         // assert
         Assert.That(await GetCountOfOutboxItems(factory), Is.EqualTo(addedItems.Length),
-            "Все сообщения должны остаться, так как всегда отдаем ошибку");
+            "All messages should be in table after act");
     }
 
     /// <summary>
-    /// Тест, который проверяет, что если происходит ошибка во время батча
-    /// то уже обработанные будут удалены из бд.
+    /// Test that covers case when batch partially processed and error occur.
+    /// Processed items should commited, others should retried without reorderings.
     /// </summary>
     [Test]
-    public async Task ShouldStopProcessBatchOnFirstFailureInStrictOrderMode()
+    public async Task Should_stop_process_batch_when_first_failure_in_strict_order_mode()
     {
         // arrange
         var ids = new List<Guid>();
@@ -197,11 +197,11 @@ public sealed partial class EntityFrameworkOutboxWorkerTests
         var worker = factory.Services.GetRequiredKeyedService<IOutboxWorker>(options.WorkerType);
 
         Assume.That(await GetCountOfOutboxItems(factory), Is.Zero,
-            $"Сообщений в таблице {options.GetDbMapping().QualifiedTableName} быть не должно");
+            $"Table {options.GetDbMapping().QualifiedTableName} should be empty before act");
 
         var addedItems = await AddItemsAsync(factory, options.OutboxItemsLimit);
 
-        // первые N элементов будут обработаны успешно, а на последующие в батче - ошибка
+        // first n must succeed, others - fail with exception
         const int firstNSuccess = 2;
 
         Assume.That(firstNSuccess, Is.LessThanOrEqualTo(options.OutboxItemsLimit));
@@ -216,15 +216,15 @@ public sealed partial class EntityFrameworkOutboxWorkerTests
 
         // assert
         Assert.That(await GetCountOfOutboxItems(factory), Is.EqualTo(addedItems.Length - firstNSuccess),
-            "В БД должны остаться только необработанные");
+            "The count of items in table not matched with expected");
     }
 
     /// <summary>
-    /// Тест, который проверяет, что если происходит ошибка во время батча
-    /// то уже обработанные будут удалены из бд. А тот что не удалось - будет отправлен на ретрай.
+    /// Test that covers case when batch partially processed and error occur.
+    /// Processed items should commited, others should retried without reorderings.
     /// </summary>
     [Test]
-    public async Task ShouldStopBatchProcessingAndRetryFailedItemOnFirstFailureInCompetingMode()
+    public async Task Should_stop_batch_processing_and_retry_failed_item_when_first_failure_in_competing_mode()
     {
         // arrange
         var ids = new List<Guid>();
@@ -240,11 +240,11 @@ public sealed partial class EntityFrameworkOutboxWorkerTests
         var worker = factory.Services.GetRequiredKeyedService<IOutboxWorker>(options.WorkerType);
 
         Assume.That(await GetCountOfOutboxItems(factory), Is.Zero,
-            $"Сообщений в таблице {options.GetDbMapping().QualifiedTableName} быть не должно");
+            $"Table {options.GetDbMapping().QualifiedTableName} should be empty before act");
 
         var addedItems = await AddItemsAsync(factory, options.OutboxItemsLimit);
 
-        // первые N элементов будут обработаны успешно, а на последующие в батче - ошибка
+        // first n must succeed, others - fail with exception
         const int firstNSuccess = 2;
 
         Assume.That(firstNSuccess, Is.LessThanOrEqualTo(options.OutboxItemsLimit));
@@ -259,7 +259,7 @@ public sealed partial class EntityFrameworkOutboxWorkerTests
 
         // assert
         Assert.That(await GetCountOfOutboxItems(factory), Is.EqualTo(addedItems.Length - firstNSuccess),
-            "В БД должны остаться только необработанные");
+            "The count of items in table not matched with expected");
     }
 
     private static WebAppFactory CreateWebApp<T>(IOutboxItemHandler<T> handler)

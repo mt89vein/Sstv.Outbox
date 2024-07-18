@@ -3,7 +3,7 @@ using Sstv.Outbox.IntegrationTests.Fixtures;
 using Testcontainers.PostgreSql;
 
 /// <summary>
-/// Инициализация контейнера
+/// Postgres container initialization.
 /// </summary>
 [SetUpFixture]
 #pragma warning disable CA1050

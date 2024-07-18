@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 namespace Sstv.Outbox.IntegrationTests.Fixtures;
 
 /// <summary>
-/// Стаб для Kafka Producer, который считает количество публикаций.
+/// Outbox item handler spy, that collected processed message ids.
 /// </summary>
 internal sealed class NotificationMessageProducerSpy<T> : IOutboxItemHandler<T>
     where T : class, IKafkaOutboxItem

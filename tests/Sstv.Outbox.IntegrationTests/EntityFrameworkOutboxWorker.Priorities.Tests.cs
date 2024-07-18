@@ -12,10 +12,10 @@ namespace Sstv.Outbox.IntegrationTests;
 public sealed partial class EntityFrameworkOutboxWorkerTests
 {
     /// <summary>
-    /// Тест на обработку сообщений из таблицы с учетом приоритетов.
+    /// Happy path of processing outbox items with priority feature.
     /// </summary>
     [Test]
-    public async Task ShouldPublishMessagesFromOutboxWithRespectOfTheirPriority()
+    public async Task Should_publish_messages_from_outbox_with_respect_of_their_priority()
     {
         // arrange
         var spy = new NotificationMessageProducerSpy<KafkaEfOutboxItemWithPriority>();
@@ -26,7 +26,7 @@ public sealed partial class EntityFrameworkOutboxWorkerTests
         var worker = factory.Services.GetRequiredKeyedService<IOutboxWorker>(options.WorkerType);
 
         Assume.That(await GetCountOfOutboxItemsWithPriority(factory), Is.Zero,
-            $"Сообщений в таблице {options.GetDbMapping().QualifiedTableName} быть не должно");
+            $"Table {options.GetDbMapping().QualifiedTableName} should be empty before act");
 
         var expectedProcessingOrder = await SeedAsync(factory, options.OutboxItemsLimit);
 
@@ -37,13 +37,16 @@ public sealed partial class EntityFrameworkOutboxWorkerTests
         await Assert.MultipleAsync(async () =>
         {
             Assert.That(await GetCountOfOutboxItemsWithPriority(factory), Is.Zero,
-                $"Сообщений в таблице {options.GetDbMapping().QualifiedTableName} быть не должно");
+                $"Table {options.GetDbMapping().QualifiedTableName} should be empty after act");
 
             Assert.That(spy.PublishedCount, Is.EqualTo(options.OutboxItemsLimit),
-                "Количество опубликованных сообщений не совпадает");
+                "The count of published messages doesn't match with expected");
 
-            Assert.That(spy.PublishedIds, Is.EqualTo(expectedProcessingOrder).AsCollection);
+            Assert.That(spy.PublishedIds, Is.EqualTo(expectedProcessingOrder).AsCollection,
+                "Published ids not matched with expected ids");
         });
+
+        return;
 
         static async Task<Guid[]> SeedAsync(WebAppFactory factory, int limit)
         {

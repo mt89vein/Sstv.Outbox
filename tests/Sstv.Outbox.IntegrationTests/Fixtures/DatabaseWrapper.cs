@@ -5,7 +5,7 @@ using Respawn;
 namespace Sstv.Outbox.IntegrationTests.Fixtures;
 
 /// <summary>
-/// Синглтон объект для обеспечения инициализации БД и сброса БД перед тестами.
+/// Singleton object, that used to init database and clear before the tests.
 /// </summary>
 public sealed class DatabaseWrapper : IAsyncDisposable, IDisposable
 {
@@ -13,7 +13,7 @@ public sealed class DatabaseWrapper : IAsyncDisposable, IDisposable
     private NpgsqlConnection? _connection;
 
     /// <summary>
-    /// Инициализация БД и очистителя БД.
+    /// Init cleaner.
     /// </summary>
     public async Task InitAsync(DbContext context)
     {
@@ -39,7 +39,7 @@ public sealed class DatabaseWrapper : IAsyncDisposable, IDisposable
     }
 
     /// <summary>
-    /// Очистить БД.
+    /// Clean database.
     /// </summary>
     public async Task ResetAsync()
     {
@@ -51,7 +51,7 @@ public sealed class DatabaseWrapper : IAsyncDisposable, IDisposable
     }
 
     /// <summary>
-    /// Освободить ресурсы.
+    /// Clean resources.
     /// </summary>
     public async ValueTask DisposeAsync()
     {
@@ -62,7 +62,7 @@ public sealed class DatabaseWrapper : IAsyncDisposable, IDisposable
     }
 
     /// <summary>
-    /// Освободить ресурсы.
+    /// Clean resources.
     /// </summary>
     public void Dispose()
     {

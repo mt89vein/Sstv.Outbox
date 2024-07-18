@@ -72,11 +72,13 @@ internal sealed class DbMapping
 
         var schemaName = dbSet.EntityType.GetDefaultSchema() ?? "public";
 
+        dbSet.EntityType.GetSchemaQualifiedTableName();
+
         return new DbMapping
         {
             SchemaName = schemaName,
             TableName = tableName,
-            QualifiedTableName = schemaName + "." + $"\"{tableName}\"",
+            QualifiedTableName = dbSet.EntityType.GetSchemaQualifiedTableName() ?? schemaName + "." + $"\"{tableName}\"",
             ColumnNames =
             {
                 [nameof(IOutboxItem.Id)] = GetColumnName(dbSet, nameof(IOutboxItem.Id)),

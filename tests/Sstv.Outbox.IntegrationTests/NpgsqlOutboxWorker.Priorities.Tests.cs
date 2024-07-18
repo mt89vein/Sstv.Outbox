@@ -10,16 +10,13 @@ using UUIDNext;
 
 namespace Sstv.Outbox.IntegrationTests;
 
-/// <summary>
-/// Тесты на воркер outbox.
-/// </summary>
 public sealed partial class NpgsqlOutboxWorkerTests
 {
     /// <summary>
-    /// Тест на обработку сообщений из таблицы с учетом приоритетов.
+    /// Happy path of processing outbox items with priority feature.
     /// </summary>
     [Test]
-    public async Task ShouldPublishMessagesFromOutboxWithRespectOfTheirPriority()
+    public async Task Should_publish_messages_from_outbox_with_respect_of_their_priority()
     {
         // arrange
         var spy = new NotificationMessageProducerSpy<KafkaNpgsqlOutboxItemWithPriority>();
@@ -30,7 +27,7 @@ public sealed partial class NpgsqlOutboxWorkerTests
         var worker = factory.Services.GetRequiredKeyedService<IOutboxWorker>(options.WorkerType);
 
         Assume.That(await GetCountOfOutboxItems(options), Is.Zero,
-            $"Сообщений в таблице {options.GetDbMapping().QualifiedTableName} быть не должно");
+            $"Table {options.GetDbMapping().QualifiedTableName} should be empty before act");
 
         var expectedProcessingOrder = await SeedAsync(factory, options.OutboxItemsLimit);
 
@@ -41,12 +38,13 @@ public sealed partial class NpgsqlOutboxWorkerTests
         await Assert.MultipleAsync(async () =>
         {
             Assert.That(await GetCountOfOutboxItems(options), Is.Zero,
-                $"Сообщений в таблице {options.GetDbMapping().QualifiedTableName} быть не должно");
+                $"Table {options.GetDbMapping().QualifiedTableName} should be empty after act");
 
             Assert.That(spy.PublishedCount, Is.EqualTo(options.OutboxItemsLimit),
-                "Количество опубликованных сообщений не совпадает");
+                "The count of published messages doesn't match with expected");
 
-            Assert.That(spy.PublishedIds, Is.EqualTo(expectedProcessingOrder).AsCollection);
+            Assert.That(spy.PublishedIds, Is.EqualTo(expectedProcessingOrder).AsCollection,
+                "Published ids not matched with expected ids");
         });
 
         static async Task<Guid[]> SeedAsync(WebAppFactory factory, int limit)

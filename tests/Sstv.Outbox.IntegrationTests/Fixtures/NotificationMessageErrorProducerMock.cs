@@ -1,7 +1,7 @@
 namespace Sstv.Outbox.IntegrationTests.Fixtures;
 
 /// <summary>
-/// Стаб для Kafka Producer, который выкидывает или возвращает ошибку.
+/// Outbox item handler mock, that can be configured to return some expected result or error.
 /// </summary>
 internal sealed class NotificationMessageErrorProducerMock<T> : IOutboxItemHandler<T>
     where T : class, IKafkaOutboxItem

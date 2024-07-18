@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using Dapper;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,17 +14,18 @@ using UUIDNext;
 namespace Sstv.Outbox.IntegrationTests;
 
 /// <summary>
-/// Тесты на воркер outbox.
+/// Tests for worker with Npgsql.
 /// </summary>
 [TestOf(typeof(IOutboxWorker))]
 [TestOf(typeof(StrictOrderingOutboxWorker))]
 [TestOf(typeof(CompetingOutboxWorker))]
 [TestOf(typeof(StrictOrderingOutboxRepository<>))]
 [TestOf(typeof(CompetingOutboxRepository<>))]
+[SuppressMessage("Naming", "CA1707:Identifiers should not contain underscore symbols")]
 public sealed partial class NpgsqlOutboxWorkerTests
 {
     /// <summary>
-    /// Очищает БД перед каждым тестом.
+    /// Cleans db before every test.
     /// </summary>
     [SetUp]
     public Task Setup()
@@ -32,10 +34,10 @@ public sealed partial class NpgsqlOutboxWorkerTests
     }
 
     /// <summary>
-    /// Тест на стандартную обработку - получили сообщения из таблицы, отправили в обработку.
+    /// Happy path. Fetch data from table and push to outbox item handler.
     /// </summary>
     [Test]
-    public async Task ShouldPublishMessagesFromOutbox()
+    public async Task Worker_should_process_outbox_item_table_when_process_async_called()
     {
         // arrange
         var spy = new NotificationMessageProducerSpy<KafkaNpgsqlOutboxItem>();
@@ -46,7 +48,7 @@ public sealed partial class NpgsqlOutboxWorkerTests
         var worker = factory.Services.GetRequiredKeyedService<IOutboxWorker>(options.WorkerType);
 
         Assume.That(await GetCountOfOutboxItems(options), Is.Zero,
-            $"Сообщений в таблице {options.GetDbMapping().QualifiedTableName} быть не должно");
+            $"Table {options.GetDbMapping().QualifiedTableName} should be empty before act");
 
         await AddItemsAsync(factory, options.OutboxItemsLimit);
 
@@ -57,20 +59,19 @@ public sealed partial class NpgsqlOutboxWorkerTests
         await Assert.MultipleAsync(async () =>
         {
             Assert.That(await GetCountOfOutboxItems(options), Is.Zero,
-                $"Сообщений в таблице {options.GetDbMapping().QualifiedTableName} быть не должно");
+                $"Table {options.GetDbMapping().QualifiedTableName} should be empty after act");
 
             Assert.That(spy.PublishedCount, Is.EqualTo(options.OutboxItemsLimit),
-                "Количество опубликованных сообщений не совпадает");
+                "The count of published messages doesn't match with expected");
         });
     }
 
     /// <summary>
-    /// Тест при котором проверяется конкурентная работа нескольких воркеров одновременно
-    /// в режиме strict_ordering.
+    /// This test checks concurrent workers in strict ordering mode that try to fetch and process data at the same time.
     /// </summary>
     [Test]
     [TestCase(10)]
-    public async Task ShouldHandleConcurrentWorkerRequestsInStrictOrderingMode(int competingWorkersCount)
+    public async Task Should_handle_concurrent_worker_requests_in_strict_ordering_mode(int competingWorkersCount)
     {
         // arrange
         var spy = new NotificationMessageProducerSpy<KafkaNpgsqlOutboxItem>();
@@ -84,7 +85,7 @@ public sealed partial class NpgsqlOutboxWorkerTests
         var additionalItemsInTable = 1;
 
         Assume.That(await GetCountOfOutboxItems(options), Is.Zero,
-            $"Сообщений в таблице {options.GetDbMapping().QualifiedTableName} быть не должно");
+            $"Table {options.GetDbMapping().QualifiedTableName} should be empty before act");
 
         await AddItemsAsync(factory, options.OutboxItemsLimit + additionalItemsInTable);
 
@@ -97,20 +98,19 @@ public sealed partial class NpgsqlOutboxWorkerTests
         await Assert.MultipleAsync(async () =>
         {
             Assert.That(await GetCountOfOutboxItems(options), Is.EqualTo(additionalItemsInTable),
-                "Должно быть одно сообщение, так как работает только 1 воркер");
+                "Expected to be one message in the table after act");
 
             Assert.That(spy.PublishedCount, Is.EqualTo(expectedPublishedMessagesCount),
-                "Количество опубликованных сообщений не совпадает");
+                "The count of published messages doesn't match with expected");
         });
     }
 
     /// <summary>
-    /// Тест при котором проверяется конкурентная работа нескольких воркеров одновременно
-    /// в режиме competing.
+    /// This test checks concurrent workers in competing mode that try to fetch and process data at the same time.
     /// </summary>
     [Test]
     [TestCase(10)]
-    public async Task ShouldHandleConcurrentWorkerRequestsInCompetingMode(int competingWorkersCount)
+    public async Task Should_handle_concurrent_worker_requests_in_competing_mode(int competingWorkersCount)
     {
         // arrange
         var spy = new NotificationMessageProducerSpy<KafkaNpgsqlOutboxItem>();
@@ -125,7 +125,7 @@ public sealed partial class NpgsqlOutboxWorkerTests
         var additionalItemsInTable = 1;
 
         Assume.That(await GetCountOfOutboxItems(options), Is.Zero,
-            $"Сообщений в таблице {options.GetDbMapping().QualifiedTableName} быть не должно");
+            $"Table {options.GetDbMapping().QualifiedTableName} should be empty before act");
 
         await AddItemsAsync(factory, (options.OutboxItemsLimit * competingWorkersCount) + additionalItemsInTable);
 
@@ -138,25 +138,25 @@ public sealed partial class NpgsqlOutboxWorkerTests
         await Assert.MultipleAsync(async () =>
         {
             Assert.That(await GetCountOfOutboxItems(options), Is.EqualTo(additionalItemsInTable),
-                "Количество остаточных сообщений не совпадает");
+                "The count of expected messages in the table after act not matched");
 
             Assert.That(spy.PublishedCount, Is.EqualTo(expectedPublishedMessagesCount),
-                "Количество опубликованных сообщений не совпадает");
+                "The count of published messages doesn't match with expected");
         });
     }
 
     /// <summary>
-    /// Тест, который обрабатывает ретраи в случае ошибок в обработчике.
+    /// We need to retry processing of outbox item when error occured or retry result returned.
     /// </summary>
     [Test]
     [TestCase(OutboxItemHandleResult.Retry)]
     [TestCase(null)]
-    public async Task ShouldRetryOnErrorInCompetingMode(OutboxItemHandleResult? result)
+    public async Task Should_retry_on_error_in_competing_mode(OutboxItemHandleResult? result)
     {
         // arrange
         var spy = new NotificationMessageErrorProducerMock<KafkaNpgsqlOutboxItem>(_ =>
         {
-            return result ?? throw new Exception("Тестом заложено, что не удалось опубликовать");
+            return result ?? throw new Exception("Test configured to throw an exception");
         });
         await using var factory = CreateWebApp(spy);
 
@@ -166,7 +166,7 @@ public sealed partial class NpgsqlOutboxWorkerTests
         var worker = factory.Services.GetRequiredKeyedService<IOutboxWorker>(options.WorkerType);
 
         Assume.That(await GetCountOfOutboxItems(options), Is.Zero,
-            $"Сообщений в таблице {options.GetDbMapping().QualifiedTableName} быть не должно");
+            $"Table {options.GetDbMapping().QualifiedTableName} should be empty before act");
 
         var addedItems = await AddItemsAsync(factory, options.OutboxItemsLimit);
 
@@ -175,59 +175,15 @@ public sealed partial class NpgsqlOutboxWorkerTests
 
         // assert
         Assert.That(await GetCountOfOutboxItems(options), Is.EqualTo(addedItems.Length),
-            "Все сообщения должны остаться, так как всегда отдаем ошибку");
+            "All messages should be in table after act");
     }
 
     /// <summary>
-    /// Тест, который проверяет, что если происходит ошибка во время батча
-    /// то уже обработанные будут удалены из бд. А тот что не удалось - будет отправлен на ретрай.
+    /// Test that covers case when batch partially processed and error occur.
+    /// Processed items should commited, others should retried without reorderings.
     /// </summary>
     [Test]
-    public async Task ShouldStopBatchProcessingAndRetryFailedItemOnFirstFailureInCompetingMode()
-    {
-        // arrange
-        var ids = new List<Guid>();
-        var mock = new NotificationMessageErrorProducerMock<KafkaNpgsqlOutboxItem>(item => ids.Contains(item.Id)
-            ? OutboxItemHandleResult.Ok
-            : OutboxItemHandleResult.Retry
-        );
-        await using var factory = CreateWebApp(mock);
-
-        var monitor = factory.Services.GetRequiredService<IOptionsMonitor<OutboxOptions>>();
-        var options = monitor.Get(nameof(KafkaNpgsqlOutboxItem));
-        options.WorkerType = NpgsqlWorkerTypes.Competing;
-        var worker = factory.Services.GetRequiredKeyedService<IOutboxWorker>(options.WorkerType);
-
-        Assume.That(await GetCountOfOutboxItems(options), Is.Zero,
-            $"Сообщений в таблице {options.GetDbMapping().QualifiedTableName} быть не должно");
-
-        var addedItems = await AddItemsAsync(factory, options.OutboxItemsLimit);
-
-        // первые N элементов будут обработаны успешно, а на последующие в батче - ошибка
-        const int firstNSuccess = 2;
-
-        Assume.That(firstNSuccess, Is.LessThanOrEqualTo(options.OutboxItemsLimit));
-
-        ids.AddRange(addedItems
-            .OrderBy(x => x.Id)
-            .Take(firstNSuccess)
-            .Select(x => x.Id));
-
-        // act
-        await worker.ProcessAsync<KafkaNpgsqlOutboxItem>(options, CancellationToken.None);
-
-        // assert
-        Assert.That(await GetCountOfOutboxItems(options),
-            Is.EqualTo(addedItems.Length - firstNSuccess),
-            "Все сообщения должны остаться, так как всегда отдаем ошибку");
-    }
-
-    /// <summary>
-    /// Тест, который проверяет, что если происходит ошибка во время батча
-    /// то уже обработанные будут удалены из бд.
-    /// </summary>
-    [Test]
-    public async Task ShouldStopProcessBatchOnFirstFailureInStrictOrderingMode()
+    public async Task Should_stop_process_batch_when_first_failure_in_strict_order_mode()
     {
         // arrange
         var ids = new List<Guid>();
@@ -264,6 +220,50 @@ public sealed partial class NpgsqlOutboxWorkerTests
         Assert.That(await GetCountOfOutboxItems(options),
             Is.EqualTo(addedItems.Length - firstNSuccess),
             "В БД должны остаться только необработанные");
+    }
+
+    /// <summary>
+    /// Test that covers case when batch partially processed and error occur.
+    /// Processed items should commited, others should retried without reorderings.
+    /// </summary>
+    [Test]
+    public async Task Should_stop_batch_processing_and_retry_failed_item_when_first_failure_in_competing_mode()
+    {
+        // arrange
+        var ids = new List<Guid>();
+        var mock = new NotificationMessageErrorProducerMock<KafkaNpgsqlOutboxItem>(item => ids.Contains(item.Id)
+            ? OutboxItemHandleResult.Ok
+            : OutboxItemHandleResult.Retry
+        );
+        await using var factory = CreateWebApp(mock);
+
+        var monitor = factory.Services.GetRequiredService<IOptionsMonitor<OutboxOptions>>();
+        var options = monitor.Get(nameof(KafkaNpgsqlOutboxItem));
+        options.WorkerType = NpgsqlWorkerTypes.Competing;
+        var worker = factory.Services.GetRequiredKeyedService<IOutboxWorker>(options.WorkerType);
+
+        Assume.That(await GetCountOfOutboxItems(options), Is.Zero,
+            $"Сообщений в таблице {options.GetDbMapping().QualifiedTableName} быть не должно");
+
+        var addedItems = await AddItemsAsync(factory, options.OutboxItemsLimit);
+
+        // первые N элементов будут обработаны успешно, а на последующие в батче - ошибка
+        const int firstNSuccess = 2;
+
+        Assume.That(firstNSuccess, Is.LessThanOrEqualTo(options.OutboxItemsLimit));
+
+        ids.AddRange(addedItems
+            .OrderBy(x => x.Id)
+            .Take(firstNSuccess)
+            .Select(x => x.Id));
+
+        // act
+        await worker.ProcessAsync<KafkaNpgsqlOutboxItem>(options, CancellationToken.None);
+
+        // assert
+        Assert.That(await GetCountOfOutboxItems(options),
+            Is.EqualTo(addedItems.Length - firstNSuccess),
+            "Все сообщения должны остаться, так как всегда отдаем ошибку");
     }
 
     private static WebAppFactory CreateWebApp<T>(IOutboxItemHandler<T> handler)
