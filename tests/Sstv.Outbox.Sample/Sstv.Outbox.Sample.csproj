@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <IsPackable>false</IsPackable>
+        <NoWarn>$(NoWarn);CS1591;CA1515;CA1052;CA1014;CA1819;</NoWarn>
+        <UserSecretsId>8687aa26-286f-4a29-9db9-323f016f639b</UserSecretsId>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="EFCore.NamingConventions" Version="8.0.3" />
+      <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.7" />
+      <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.4">
+        <PrivateAssets>all</PrivateAssets>
+        <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      </PackageReference>
+      <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+      <PackageReference Include="OpenTelemetry" Version="1.9.0" />
+      <PackageReference Include="OpenTelemetry.Extensions.Propagators" Version="1.9.0" />
+      <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.9.0" />
+      <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.9.0" />
+      <PackageReference Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" Version="1.6.0-rc.1"/>
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\src\Sstv.Outbox.Kafka\Sstv.Outbox.Kafka.csproj" />
+      <ProjectReference Include="..\..\src\Sstv.Outbox.EntityFrameworkCore.Npgsql\Sstv.Outbox.EntityFrameworkCore.Npgsql.csproj" />
+      <ProjectReference Include="..\..\src\Sstv.Outbox.Npgsql\Sstv.Outbox.Npgsql.csproj" />
+    </ItemGroup>
+
+</Project>

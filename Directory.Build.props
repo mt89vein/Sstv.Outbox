@@ -1,12 +1,13 @@
 <Project>
   <PropertyGroup>
-    <LangVersion>Latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <Authors>Sultanov Shamil</Authors>
     <PackageTags>Outbox, Transactional Outbox</PackageTags>
+    <RepositoryType>git</RepositoryType>
     <PackageProjectUrl>https://github.com/mt89vein/Sstv.Outbox</PackageProjectUrl>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 
   <PropertyGroup Label="Analysis">

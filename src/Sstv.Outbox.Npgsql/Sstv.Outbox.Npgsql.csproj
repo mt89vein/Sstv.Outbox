@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+      <TargetFramework>net8.0</TargetFramework>
+      <PackageId>Sstv.Outbox.Npgsql</PackageId>
+      <Description>.NET Library that implements Transactional Outbox pattering with Npsql.</Description>
+      <PackageReadmeFile>README.md</PackageReadmeFile>
+      <GenerateDocumentationFile>true</GenerateDocumentationFile>
+      <IsPackable>true</IsPackable>
+      <RepositoryType>git</RepositoryType>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <InternalsVisibleTo Include="Sstv.Outbox.IntegrationTests" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Sstv.Outbox\Sstv.Outbox.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Dapper" Version="2.1.35" />
+      <PackageReference Include="Humanizer" Version="2.14.1" />
+      <PackageReference Include="Npgsql" Version="8.0.3" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Include="./../../README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+
+</Project>

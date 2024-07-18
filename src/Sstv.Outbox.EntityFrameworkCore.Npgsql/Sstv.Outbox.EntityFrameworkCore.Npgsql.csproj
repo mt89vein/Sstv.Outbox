@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+      <TargetFramework>net8.0</TargetFramework>
+      <PackageId>Sstv.Outbox.EntityFrameworkCore.Npgsql</PackageId>
+      <Description>.NET Library that implements Transactional Outbox pattering with EntityFrameworkCore.</Description>
+      <PackageReadmeFile>README.md</PackageReadmeFile>
+      <GenerateDocumentationFile>true</GenerateDocumentationFile>
+      <IsPackable>true</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <InternalsVisibleTo Include="Sstv.Outbox.IntegrationTests" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.4" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Sstv.Outbox\Sstv.Outbox.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="./../../README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+
+</Project>

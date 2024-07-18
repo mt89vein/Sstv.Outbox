@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+      <TargetFramework>net8.0</TargetFramework>
+      <PackageId>Sstv.Outbox</PackageId>
+      <Description>.NET Библиотека с реализацией паттерна Transactional Outbox.</Description>
+      <PackageReadmeFile>README.md</PackageReadmeFile>
+      <GenerateDocumentationFile>true</GenerateDocumentationFile>
+      <IsPackable>true</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <FrameworkReference Include="Microsoft.AspNetCore.App" />
+      <InternalsVisibleTo Include="Sstv.Outbox.Npgsql" />
+      <InternalsVisibleTo Include="Sstv.Outbox.EntityFrameworkCore.Npgsql" />
+      <InternalsVisibleTo Include="Sstv.Outbox.Kafka" />
+      <InternalsVisibleTo Include="Sstv.Outbox.IntegrationTests" />
+      <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.3.4">
+        <PrivateAssets>all</PrivateAssets>
+        <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      </PackageReference>
+      <PackageReference Include="UUIDNext" Version="3.0.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Include="./../../README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+
+</Project>
