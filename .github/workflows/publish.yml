@@ -59,27 +59,21 @@ jobs:
   run_test:
     runs-on: ubuntu-latest
     services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          # Maps tcp port 5432 on service container to the host
-          - 5432:5432    
+      docker:
+        image: docker:dind
+        options: --privileged --shm-size=2g
+        volumes:
+          - /var/run/docker.sock:/var/run/docker.sock:ro 
     steps:
     - uses: actions/checkout@v4
+    - name: Install Docker
+      run: |
+        apt-get update
+        apt-get install -y docker.io
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
     - name: Run tests
       run: dotnet test --configuration Release
-      env:
-        ConnectionStrings__DefaultConnection: Server=postgres;Port=5432;Database=outbox_integration_test;User ID=postgres;Password=postgres;Include Error Detail=true;Timezone=UTC;
 
   deploy:
     # Publish only when creating a GitHub Release
