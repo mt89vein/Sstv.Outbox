@@ -69,7 +69,12 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
     - name: Run tests
-      run: dotnet test --configuration Release
+      run: dotnet test --configuration Release /p:CollectCoverage=true /p:CoverletOutputFormat=lcov
+    - name: Publish coverage report to coveralls.io
+      uses: coverallsapp/github-action@master
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        path-to-lcov: ./tests/Sstv.Outbox.IntegrationTests/coverage.info       
 
   deploy:
     # Publish only when creating a GitHub Release
