@@ -48,25 +48,22 @@ public sealed class StrictOrderingOutboxRepository<TDbContext, TOutboxItem> : IO
 
         _transaction = await _dbContext.Database.BeginTransactionAsync(ct);
 
-        string sql;
-        if (_options.GetPriorityFeature().Enabled)
-        {
-            sql = $"""
+        var filter = _options.PartitionSettings.Enabled
+            ? $"WHERE {m.Status} <> {(int)OutboxItemStatus.Completed}"
+            : string.Empty;
+
+        var order = _options.GetPriorityFeature()
+            .Enabled
+            ? $"ORDER BY {m.Priority} DESC, {m.Id} ASC"
+            : $"ORDER BY {m.Id} ASC";
+
+        var sql = $"""
                    SELECT * FROM {m.QualifiedTableName}
-                   ORDER BY {m.Priority} DESC, {m.Id} ASC
+                   {filter}
+                   {order}
                    LIMIT {_options.OutboxItemsLimit}
                    FOR UPDATE NOWAIT;
                    """;
-        }
-        else
-        {
-            sql = $"""
-                   SELECT * FROM {m.QualifiedTableName}
-                   ORDER BY {m.Id} ASC
-                   LIMIT {_options.OutboxItemsLimit}
-                   FOR UPDATE NOWAIT;
-                   """;
-        }
 
         try
         {
@@ -110,7 +107,11 @@ public sealed class StrictOrderingOutboxRepository<TDbContext, TOutboxItem> : IO
             throw new NotSupportedException("Retry not supported for strict ordering worker");
         }
 
-        _dbContext.Set<TOutboxItem>().RemoveRange(completed);
+        if (!_options.PartitionSettings.Enabled)
+        {
+            _dbContext.Set<TOutboxItem>().RemoveRange(completed);
+        }
+
         await _dbContext.SaveChangesAsync(ct);
         await _transaction.CommitAsync(ct);
     }

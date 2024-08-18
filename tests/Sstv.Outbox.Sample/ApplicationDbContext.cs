@@ -24,6 +24,11 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<KafkaEfOutboxItemWithPriority> KafkaEfOutboxItemWithPriorities { get; set; } = null!;
 
     /// <summary>
+    /// Example usage of outbox items with EF and partitioned table.
+    /// </summary>
+    public DbSet<PartitionedEfOutboxItem> PartitionedEfOutboxItems { get; set; } = null!;
+
+    /// <summary>
     /// DbContext.
     /// </summary>
     /// <param name="options">DbOptions.</param>

@@ -68,34 +68,56 @@ internal sealed partial class BatchStrictOrderingOutboxWorker : IOutboxWorker
             sw.Stop();
             OutboxMetricCollector.RecordOutboxItemHandlerProcessTime(sw.ElapsedMilliseconds, outboxName, batched: true);
 
-            var processed = new List<TOutboxItem>(outboxOptions.OutboxItemsLimit);
-
-            foreach (var item in listItems)
+            if (result.AllProcessed)
             {
-                if (!result.TryGetValue(item.Id, out var outboxItemHandleResult))
+                if (outboxOptions.PartitionSettings.Enabled)
                 {
-                    // warn: not returned result?
-
-                    continue;
+                    listItems.ForEach(x => ((IHasStatus)x).Status = OutboxItemStatus.Completed);
                 }
 
-                if (outboxItemHandleResult.IsSuccess())
-                {
-                    processed.Add(item);
-                }
-                else
-                {
-                    break;
-                }
+                OutboxMetricCollector.IncProcessedCount(outboxName, listItems.Count);
+                await repository.SaveAsync(listItems, retried: [], ct).ConfigureAwait(false);
+
+                OutboxItemsProcessResult(listItems.Count);
             }
-
-            if (processed.Count > 0)
+            else
             {
-                OutboxMetricCollector.IncProcessedCount(outboxName, processed.Count);
-                await repository.SaveAsync(processed, Array.Empty<TOutboxItem>(), ct).ConfigureAwait(false);
-            }
+                var processed = new List<TOutboxItem>(outboxOptions.OutboxItemsLimit);
 
-            OutboxItemsProcessResult(processed.Count);
+                foreach (var item in listItems)
+                {
+                    if (!result.ProcessedInfo.TryGetValue(item.Id, out var outboxItemHandleResult))
+                    {
+                        // warn: not returned result?
+
+                        continue;
+                    }
+
+                    if (outboxItemHandleResult.IsSuccess())
+                    {
+                        if (item is IHasStatus hasStatus)
+                        {
+                            hasStatus.Status = OutboxItemStatus.Completed;
+                        }
+
+                        processed.Add(item);
+                    }
+                    else
+                    {
+                        // if we get an error, we stop processing and commit what we have already done
+
+                        break;
+                    }
+                }
+
+                if (processed.Count > 0)
+                {
+                    OutboxMetricCollector.IncProcessedCount(outboxName, processed.Count);
+                    await repository.SaveAsync(processed, Array.Empty<TOutboxItem>(), ct).ConfigureAwait(false);
+                }
+
+                OutboxItemsProcessResult(processed.Count);
+            }
         }
         catch (Exception e)
         {

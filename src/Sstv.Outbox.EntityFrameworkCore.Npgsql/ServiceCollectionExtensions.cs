@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Sstv.Outbox.Features.Partitions;
 
 namespace Sstv.Outbox.EntityFrameworkCore.Npgsql;
 
@@ -45,6 +46,7 @@ public static class ServiceCollectionExtensions
                 using var dbContext = scope.ServiceProvider.GetRequiredService<TDbContext>();
                 o.SetDbMapping(DbMapping.GetFor<TOutboxItem>(dbContext));
                 o.SetPriorityFeature<TOutboxItem>();
+                o.SetStatusFeature<TOutboxItem>();
 
                 o.WorkerType ??= EfCoreWorkerTypes.Competing;
                 configure?.Invoke(o);
@@ -55,9 +57,13 @@ public static class ServiceCollectionExtensions
                            options.WorkerType is not (EfCoreWorkerTypes.Competing or EfCoreWorkerTypes.BatchCompeting),
                 failureMessage:
                 $"You should implement {typeof(IHasStatus)} in your {typeof(TOutboxItem)} when worker type in competing mode"
-            ).ValidateOnStart();
-
-        services.TryAddScoped<IOutboxMaintenanceRepository<TOutboxItem>, OutboxMaintenanceItemRepository<TDbContext, TOutboxItem>>();
+            )
+            .Validate(validation:
+                options => (options.PartitionSettings.Enabled && typeof(TOutboxItem).IsAssignableTo(typeof(IHasStatus))) || !options.PartitionSettings.Enabled,
+                failureMessage:
+                $"You should implement {typeof(IHasStatus)} in your {typeof(TOutboxItem)} when partitions enabled"
+            )
+            .ValidateOnStart();
 
         services.TryAddKeyedTransient<IOutboxRepository<TOutboxItem>, StrictOrderingOutboxRepository<TDbContext, TOutboxItem>>(EfCoreWorkerTypes.StrictOrdering);
         services.TryAddKeyedTransient<IOutboxWorker, StrictOrderingOutboxWorker>(EfCoreWorkerTypes.StrictOrdering);
@@ -73,6 +79,11 @@ public static class ServiceCollectionExtensions
 
         services.TryAddSingleton(TimeProvider.System);
         services.AddHostedService<OutboxBackgroundService<TOutboxItem>>();
+
+        services.AddHostedService<OutboxPartitionerBackgroundService<TOutboxItem>>();
+        services.TryAddScoped<IPartitioner<TOutboxItem>, Partitioner<TDbContext, TOutboxItem>>();
+
+        services.TryAddScoped<IOutboxMaintenanceRepository<TOutboxItem>, OutboxMaintenanceItemRepository<TDbContext, TOutboxItem>>();
 
         return new OutboxItemHandlerBuilder<TOutboxItem>(services, outboxName);
     }

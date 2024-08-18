@@ -73,11 +73,16 @@ internal sealed partial class StrictOrderingOutboxWorker : IOutboxWorker
 
                     if (result.IsSuccess())
                     {
+                        if (item is IHasStatus hasStatus)
+                        {
+                            hasStatus.Status = OutboxItemStatus.Completed;
+                        }
+
                         processed.Add(item);
                     }
                     else
                     {
-                        // получили ошибку, поэтому стопаем процесс, коммитим что уже успели сделать
+                        // if we get an error, we stop processing and commit what we have already done
 
                         break;
                     }

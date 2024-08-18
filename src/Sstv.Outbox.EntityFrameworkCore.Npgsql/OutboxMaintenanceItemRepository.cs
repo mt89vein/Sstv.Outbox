@@ -34,7 +34,8 @@ public sealed class OutboxMaintenanceItemRepository<TDbContext, TOutboxItem> : I
     /// <param name="monitor">Outbox settings.</param>
     public OutboxMaintenanceItemRepository(
         TDbContext dbContext,
-        IOptionsMonitor<OutboxOptions> monitor)
+        IOptionsMonitor<OutboxOptions> monitor
+    )
     {
         _dbContext = dbContext;
         ArgumentNullException.ThrowIfNull(monitor);

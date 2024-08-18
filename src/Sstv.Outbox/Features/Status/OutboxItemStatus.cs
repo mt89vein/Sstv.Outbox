@@ -19,4 +19,9 @@ public enum OutboxItemStatus
     /// Retrying.
     /// </summary>
     Retry = 2,
+
+    /// <summary>
+    /// Completed.
+    /// </summary>
+    Completed = 3,
 }

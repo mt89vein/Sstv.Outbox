@@ -46,27 +46,22 @@ public sealed class CompetingOutboxRepository<TDbContext, TOutboxItem> : IOutbox
 
         _transaction = await _dbContext.Database.BeginTransactionAsync(ct);
 
-        string sql;
-        if (_options.GetPriorityFeature().Enabled)
-        {
-            sql = $"""
-                    SELECT * FROM {m.QualifiedTableName}
-                    WHERE {m.RetryAfter} is null or {m.RetryAfter} <= '{DateTimeOffset.UtcNow:O}'::timestamptz
-                    ORDER BY {m.Priority} DESC, {m.Id} ASC, {m.RetryAfter} ASC
-                    LIMIT {_options.OutboxItemsLimit}
-                    FOR UPDATE SKIP LOCKED;
-                    """;
-        }
-        else
-        {
-            sql = $"""
-                   SELECT * FROM {m.QualifiedTableName}
-                   WHERE {m.RetryAfter} is null or {m.RetryAfter} <= '{DateTimeOffset.UtcNow:O}'::timestamptz
-                   ORDER BY {m.Id} ASC, {m.RetryAfter} ASC
-                   LIMIT {_options.OutboxItemsLimit}
-                   FOR UPDATE SKIP LOCKED;
+        var filter = _options.PartitionSettings.Enabled
+            ? $" and {m.Status} <> {(int)OutboxItemStatus.Completed}"
+            : string.Empty;
+
+        var order = _options.GetPriorityFeature()
+            .Enabled
+            ? $"ORDER BY {m.Priority} DESC, {m.Id} ASC, {m.RetryAfter} ASC"
+            : $"ORDER BY {m.Id} ASC, {m.RetryAfter} ASC";
+
+        var sql = $"""
+                     SELECT * FROM {m.QualifiedTableName}
+                     WHERE ({m.RetryAfter} is null or {m.RetryAfter} <= '{DateTimeOffset.UtcNow:O}'::timestamptz){filter}
+                     {order}
+                     LIMIT {_options.OutboxItemsLimit}
+                     FOR UPDATE SKIP LOCKED;
                    """;
-        }
 
         return await _dbContext
             .Set<TOutboxItem>()
@@ -97,8 +92,11 @@ public sealed class CompetingOutboxRepository<TDbContext, TOutboxItem> : IOutbox
         }
 
         // hint: retried collection tracked by EF, so they automatically updated on save changes
+        if (!_options.PartitionSettings.Enabled)
+        {
+            _dbContext.Set<TOutboxItem>().RemoveRange(completed);
+        }
 
-        _dbContext.Set<TOutboxItem>().RemoveRange(completed);
         await _dbContext.SaveChangesAsync(ct);
         await _transaction.CommitAsync(ct);
     }

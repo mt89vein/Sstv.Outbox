@@ -41,27 +41,22 @@ public sealed class CompetingOutboxRepository<TOutboxItem> : IOutboxRepository<T
 
         var m = _options.GetDbMapping();
 
-        string sql;
-        if (_options.GetPriorityFeature().Enabled)
-        {
-            sql = $"""
-                   SELECT * FROM {m.QualifiedTableName}
-                   WHERE {m.RetryAfter} is null or {m.RetryAfter} <= @now
-                   ORDER BY {m.Priority} DESC, {m.Id} ASC, {m.RetryAfter} ASC
-                   LIMIT {_options.OutboxItemsLimit}
-                   FOR UPDATE SKIP LOCKED;
+        var filter = _options.PartitionSettings.Enabled
+            ? $" and {m.Status} <> {(int)OutboxItemStatus.Completed}"
+            : string.Empty;
+
+        var order = _options.GetPriorityFeature()
+            .Enabled
+            ? $"ORDER BY {m.Priority} DESC, {m.Id} ASC, {m.RetryAfter} ASC"
+            : $"ORDER BY {m.Id} ASC, {m.RetryAfter} ASC";
+
+        var sql = $"""
+                     SELECT * FROM {m.QualifiedTableName}
+                     WHERE ({m.RetryAfter} is null or {m.RetryAfter} <= @now::timestamptz){filter}
+                     {order}
+                     LIMIT {_options.OutboxItemsLimit}
+                     FOR UPDATE SKIP LOCKED;
                    """;
-        }
-        else
-        {
-            sql = $"""
-                   SELECT * FROM {m.QualifiedTableName}
-                   WHERE {m.RetryAfter} is null or {m.RetryAfter} <= @now
-                   ORDER BY {m.Id} ASC, {m.RetryAfter} ASC
-                   LIMIT {_options.OutboxItemsLimit}
-                   FOR UPDATE SKIP LOCKED;
-                   """;
-        }
 
         return await _connection.QueryAsync<TOutboxItem>(sql, transaction: _transaction,
             param: new { now = DateTimeOffset.UtcNow }
@@ -97,18 +92,38 @@ public sealed class CompetingOutboxRepository<TOutboxItem> : IOutboxRepository<T
 
         if (completed.Count > 0)
         {
-            // TODO: Delete or mark as completed with drop partitions (daily/weekly)?
-            const string ids = "ids";
-            var sql = $"""
-                       DELETE FROM {m.QualifiedTableName}
-                       WHERE {m.Id} in (select * from unnest(@{ids}));
-                       """;
+            if (!_options.PartitionSettings.Enabled)
+            {
+                const string ids = "ids";
+                var sql = $"""
+                           DELETE FROM {m.QualifiedTableName}
+                           WHERE {m.Id} in (select * from unnest(@{ids}));
+                           """;
 
-            await using var cmd = _connection!.CreateCommand();
-            cmd.CommandText = sql;
-            cmd.Parameters.Add(new NpgsqlParameter<Guid[]>(ids, completed.Select(o => o.Id).ToArray()));
+                await using var cmd = _connection!.CreateCommand();
+                cmd.CommandText = sql;
+                cmd.Parameters.Add(new NpgsqlParameter<Guid[]>(ids, completed
+                    .Select(o => o.Id)
+                    .ToArray()));
 
-            await cmd.ExecuteNonQueryAsync(ct);
+                await cmd.ExecuteNonQueryAsync(ct);
+            }
+            else
+            {
+                const string ids = "ids";
+                var sql = $"""
+                           UPDATE {m.QualifiedTableName}
+                           SET "{m.Status}" = {(int)OutboxItemStatus.Completed}
+                           WHERE {m.Id} in (select * from unnest(@{ids}));
+                           """;
+
+                await using var cmd = _connection!.CreateCommand();
+                cmd.CommandText = sql;
+                cmd.Parameters.Add(new NpgsqlParameter<Guid[]>(ids, completed
+                    .Select(o => o.Id)
+                    .ToArray()));
+                await cmd.ExecuteNonQueryAsync(ct);
+            }
         }
 
         if (retried.Count > 0)

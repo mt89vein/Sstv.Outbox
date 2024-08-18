@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
+using Sstv.Outbox.Features.Partitions;
 
 namespace Sstv.Outbox.Npgsql;
 
@@ -49,6 +50,7 @@ public static class ServiceCollectionExtensions
                 o.SetNpgsqlDataSource(npgsqlDataSource ?? sp.GetRequiredService<NpgsqlDataSource>());
                 o.SetDbMapping(DbMapping.GetDefault(schemaName ?? "public", tableName ?? outboxName.Pluralize()));
                 o.SetPriorityFeature<TOutboxItem>();
+                o.SetStatusFeature<TOutboxItem>();
 
                 o.WorkerType ??= NpgsqlWorkerTypes.Competing;
                 configure?.Invoke(o);
@@ -59,9 +61,13 @@ public static class ServiceCollectionExtensions
                            options.WorkerType is not (NpgsqlWorkerTypes.Competing or NpgsqlWorkerTypes.BatchCompeting),
                 failureMessage:
                 $"You should implement {typeof(IHasStatus)} in your {typeof(TOutboxItem)} when worker type in competing mode"
-            ).ValidateOnStart();
-
-        services.TryAddSingleton<IOutboxMaintenanceRepository<TOutboxItem>, OutboxMaintenanceItemRepository<TOutboxItem>>();
+            )
+            .Validate(validation:
+                options => (options.PartitionSettings.Enabled && typeof(TOutboxItem).IsAssignableTo(typeof(IHasStatus))) || !options.PartitionSettings.Enabled,
+                failureMessage:
+                $"You should implement {typeof(IHasStatus)} in your {typeof(TOutboxItem)} when partitions enabled"
+            )
+            .ValidateOnStart();
 
         services.TryAddKeyedTransient<IOutboxRepository<TOutboxItem>, StrictOrderingOutboxRepository<TOutboxItem>>(NpgsqlWorkerTypes.StrictOrdering);
         services.TryAddKeyedTransient<IOutboxWorker, StrictOrderingOutboxWorker>(NpgsqlWorkerTypes.StrictOrdering);
@@ -77,6 +83,11 @@ public static class ServiceCollectionExtensions
 
         services.TryAddSingleton(TimeProvider.System);
         services.AddHostedService<OutboxBackgroundService<TOutboxItem>>();
+
+        services.AddHostedService<OutboxPartitionerBackgroundService<TOutboxItem>>();
+        services.TryAddSingleton<IPartitioner<TOutboxItem>, Partitioner<TOutboxItem>>();
+
+        services.TryAddSingleton<IOutboxMaintenanceRepository<TOutboxItem>, OutboxMaintenanceItemRepository<TOutboxItem>>();
 
         return new OutboxItemHandlerBuilder<TOutboxItem>(services, outboxName);
     }

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Sstv.Outbox.Features.Partitions;
 
 namespace Sstv.Outbox;
 
@@ -37,6 +38,11 @@ public sealed class OutboxOptions
     /// Retrying outbox item settings.
     /// </summary>
     public RetrySettings RetrySettings { get; set; } = new();
+
+    /// <summary>
+    /// Table parttioning settings.
+    /// </summary>
+    public PartitionSettings PartitionSettings { get; set; } = new();
 
     /// <summary>
     /// Uuid generator.
@@ -84,5 +90,38 @@ public sealed class OutboxOptions
         }
 
         return (T)metadata;
+    }
+}
+
+/// <summary>
+/// Extensions for <see cref="OutboxOptions"/>.
+/// </summary>
+public static partial class OutboxOptionsExtensions
+{
+    private const string OutboxNameKey = "OutboxName";
+
+    /// <summary>
+    /// Sets the name of outbox.
+    /// </summary>
+    /// <param name="options">Options.</param>
+    /// <param name="outboxName">The name of outbox.</param>
+    internal static void SetOutboxName(this OutboxOptions options, string outboxName)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentException.ThrowIfNullOrWhiteSpace(outboxName);
+
+        options.Set(OutboxNameKey, outboxName);
+    }
+
+    /// <summary>
+    /// Returns name of outbox.
+    /// </summary>
+    /// <param name="options">Options.</param>
+    /// <returns>Name.</returns>
+    public static string GetOutboxName(this OutboxOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        return options.Get<string>(OutboxNameKey);
     }
 }

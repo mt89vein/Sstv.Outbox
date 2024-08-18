@@ -77,6 +77,11 @@ internal sealed partial class CompetingOutboxWorker : IOutboxWorker
 
                     if (result.IsSuccess())
                     {
+                        if (item is IHasStatus hasStatus)
+                        {
+                            hasStatus.Status = OutboxItemStatus.Completed;
+                        }
+
                         processed.Add(item);
                     }
                     else if (item is IHasStatus hasStatus)

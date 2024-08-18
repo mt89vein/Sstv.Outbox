@@ -80,6 +80,11 @@ public class Program
 
         builder
             .Services
+            .AddOutboxItem<PartitionedOutboxItem>()
+            .WithHandler<PartitionedOutboxItem, PartitionedOutboxItemHandler>();
+
+        builder
+            .Services
             .AddOutboxItem<KafkaNpgsqlOutboxItem>()
             .ProduceToKafka();
 
@@ -87,8 +92,6 @@ public class Program
             .Services
             .AddOutboxItem<KafkaNpgsqlOutboxItemWithPriority>()
             .ProduceToKafka();
-
-        SqlMapper.AddTypeHandler(new JsonbHeadersHandler());
 
         builder
             .Services
@@ -104,6 +107,11 @@ public class Program
             .Services
             .AddOutboxItem<ApplicationDbContext, KafkaEfOutboxItemWithPriority>()
             .ProduceToKafka();
+
+        builder
+            .Services
+            .AddOutboxItem<ApplicationDbContext, PartitionedEfOutboxItem>()
+            .WithHandler<PartitionedEfOutboxItem, PartitionedEfOutboxItemHandler>();
 
         SqlMapper.AddTypeHandler(new JsonbHeadersHandler());
 
@@ -238,6 +246,44 @@ public class Program
             })
             .WithTags(nameof(StrictOutboxItem));
 
+        app.MapPost("/PartitionedStrictOutboxItem/fill", async (NpgsqlDataSource datasource, CancellationToken ct = default) =>
+            {
+                await using var cmd = datasource.CreateCommand(
+                    """
+                    INSERT INTO partitioned_strict_outbox_items (id, created_at, status, retry_count, retry_after, headers, data)
+                    SELECT * FROM unnest(@id, @created_at, @status, @retry_count, @retry_after, @headers, @data);
+                    """
+                );
+
+                var now = DateTimeOffset.UtcNow;
+                var items = Enumerable
+                    .Range(0, 100)
+                    .Select(x => new MyOutboxItem
+                    {
+                        Id = Uuid.NewSequential(),
+                        CreatedAt = now,
+                        Status = OutboxItemStatus.Ready,
+                        Headers = null,
+                        RetryAfter = null,
+                        RetryCount = null,
+                        Data = Encoding.UTF8.GetBytes($"{x} hello bytes!")
+                    })
+                    .ToArray();
+
+                cmd.Parameters.Add(new NpgsqlParameter<Guid[]>("id", items.Select(e => e.Id).ToArray()));
+                cmd.Parameters.Add(new NpgsqlParameter<DateTimeOffset[]>("created_at", items.Select(e => e.CreatedAt).ToArray()));
+                cmd.Parameters.Add(new NpgsqlParameter<int[]>("status", items.Select(e => (int)e.Status).ToArray()));
+                cmd.Parameters.Add(new NpgsqlParameter<byte[]?[]>("headers", items.Select(e => e.Headers).ToArray()));
+                cmd.Parameters.Add(new NpgsqlParameter<byte[]?[]>("data", items.Select(e => e.Data).ToArray()));
+                cmd.Parameters.Add(new NpgsqlParameter<DateTimeOffset?[]>("retry_after", items.Select(e => e.RetryAfter).ToArray()));
+                cmd.Parameters.Add(new NpgsqlParameter<int?[]>("retry_count", items.Select(e => e.RetryCount).ToArray()));
+
+                await cmd.ExecuteNonQueryAsync(ct);
+
+                return Results.Ok();
+            })
+            .WithTags(nameof(PartitionedOutboxItem));
+
         app.MapPost("/EfOutboxItem/fill", async (ApplicationDbContext ctx, CancellationToken ct = default) =>
             {
                 var now = DateTimeOffset.UtcNow;
@@ -262,6 +308,31 @@ public class Program
                 return Results.Ok();
             })
             .WithTags(nameof(EfOutboxItem));
+
+        app.MapPost("/PartitionedEfOutboxItem/fill", async (ApplicationDbContext ctx, CancellationToken ct = default) =>
+            {
+                var now = DateTimeOffset.UtcNow;
+                var items = Enumerable
+                    .Range(0, 100)
+                    .Select(x => new PartitionedEfOutboxItem
+                    {
+                        Id = Uuid.NewSequential(),
+                        CreatedAt = now,
+                        Status = OutboxItemStatus.Ready,
+                        Headers = null,
+                        RetryAfter = null,
+                        RetryCount = null,
+                        Data = Encoding.UTF8.GetBytes($"{x} hello bytes!")
+                    })
+                    .ToArray();
+
+                ctx.PartitionedEfOutboxItems.AddRange(items);
+
+                await ctx.SaveChangesAsync(ct);
+
+                return Results.Ok();
+            })
+            .WithTags(nameof(PartitionedEfOutboxItem));
 
         app.MapPost("/KafkaEfOutboxItem/add", async (
             ApplicationDbContext ctx,
@@ -292,6 +363,8 @@ public class Program
         app.MapOutboxMaintenanceEndpoints<KafkaNpgsqlOutboxItem>();
         app.MapOutboxMaintenanceEndpoints<KafkaEfOutboxItemWithPriority>();
         app.MapOutboxMaintenanceEndpoints<KafkaNpgsqlOutboxItemWithPriority>();
+        app.MapOutboxMaintenanceEndpoints<PartitionedOutboxItem>();
+        app.MapOutboxMaintenanceEndpoints<PartitionedEfOutboxItem>();
 
         app.UseSwagger();
 

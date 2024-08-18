@@ -479,6 +479,9 @@ dotnet_diagnostic.SYSLIB1045.severity = none # Use generate regex
 
 dotnet_diagnostic.CA1069.severity = error # enum value duplicates
 dotnet_diagnostic.IDE0290.severity = none # use primary constructor
+dotnet_diagnostic.CA1014.severity = none # mark assemblies as CLSCompliant
+dotnet_diagnostic.CA1515.severity = none # API application types should be internal
+dotnet_diagnostic.CA1819.severity = none # properties should not be array.
 
 
 

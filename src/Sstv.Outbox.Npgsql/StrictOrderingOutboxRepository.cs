@@ -40,25 +40,23 @@ public sealed class StrictOrderingOutboxRepository<TOutboxItem> : IOutboxReposit
         _transaction = await _connection.BeginTransactionAsync(ct);
 
         var m = _options.GetDbMapping();
-        string sql;
-        if (_options.GetPriorityFeature().Enabled)
-        {
-            sql = $"""
+
+        var filter = _options.PartitionSettings.Enabled
+            ? $"WHERE {m.Status} <> {(int)OutboxItemStatus.Completed}"
+            : string.Empty;
+
+        var order = _options.GetPriorityFeature()
+            .Enabled
+            ? $"ORDER BY {m.Priority} DESC, {m.Id} ASC"
+            : $"ORDER BY {m.Id} ASC";
+
+        var sql = $"""
                    SELECT * FROM {m.QualifiedTableName}
-                   ORDER BY {m.Priority} DESC, {m.Id} ASC
+                   {filter}
+                   {order}
                    LIMIT {_options.OutboxItemsLimit}
                    FOR UPDATE NOWAIT;
                    """;
-        }
-        else
-        {
-            sql = $"""
-                   SELECT * FROM {m.QualifiedTableName}
-                   ORDER BY {m.Id} ASC
-                   LIMIT {_options.OutboxItemsLimit}
-                   FOR UPDATE NOWAIT;
-                   """;
-        }
 
         try
         {
@@ -97,18 +95,38 @@ public sealed class StrictOrderingOutboxRepository<TOutboxItem> : IOutboxReposit
 
         var m = _options.GetDbMapping();
 
-        // TODO: Delete or mark as completed with drop partitions (daily/weekly)?
-        const string ids = "ids";
-        var sql = $"""
-                   DELETE FROM {m.QualifiedTableName}
-                   WHERE {m.Id} in (select * from unnest(@{ids}));
-                   """;
+        if (!_options.PartitionSettings.Enabled)
+        {
+            const string ids = "ids";
+            var sql = $"""
+                       DELETE FROM {m.QualifiedTableName}
+                       WHERE {m.Id} in (select * from unnest(@{ids}));
+                       """;
 
-        await using var cmd = _transaction!.Connection!.CreateCommand();
-        cmd.CommandText = sql;
-        cmd.Parameters.Add(new NpgsqlParameter<Guid[]>(ids, completed.Select(o => o.Id).ToArray()));
+            await using var cmd = _connection!.CreateCommand();
+            cmd.CommandText = sql;
+            cmd.Parameters.Add(new NpgsqlParameter<Guid[]>(ids, completed
+                .Select(o => o.Id)
+                .ToArray()));
 
-        await cmd.ExecuteNonQueryAsync(ct);
+            await cmd.ExecuteNonQueryAsync(ct);
+        }
+        else
+        {
+            const string ids = "ids";
+            var sql = $"""
+                       UPDATE {m.QualifiedTableName}
+                       SET "{m.Status}" = {(int)OutboxItemStatus.Completed}
+                       WHERE {m.Id} in (select * from unnest(@{ids}));
+                       """;
+
+            await using var cmd = _connection!.CreateCommand();
+            cmd.CommandText = sql;
+            cmd.Parameters.Add(new NpgsqlParameter<Guid[]>(ids, completed
+                .Select(o => o.Id)
+                .ToArray()));
+            await cmd.ExecuteNonQueryAsync(ct);
+        }
 
         await _transaction.CommitAsync(ct);
     }

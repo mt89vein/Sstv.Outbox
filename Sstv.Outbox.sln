@@ -5,6 +5,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SolutionItems", "SolutionIt
 		BannedSymbols.txt = BannedSymbols.txt
 		readme.md = readme.md
 		Directory.Build.props = Directory.Build.props
+		.editorconfig = .editorconfig
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sstv.Outbox", "src\Sstv.Outbox\Sstv.Outbox.csproj", "{B174BD28-7926-4CC0-BD9B-E290440BD872}"

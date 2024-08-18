@@ -68,41 +68,61 @@ internal sealed partial class BatchCompetingOutboxWorker : IOutboxWorker
             sw.Stop();
             OutboxMetricCollector.RecordOutboxItemHandlerProcessTime(sw.ElapsedMilliseconds, outboxName, batched: true);
 
-            var processed = new List<TOutboxItem>(outboxOptions.OutboxItemsLimit);
-            var retry = new List<TOutboxItem>();
-
-            foreach (var item in listItems)
+            if (result.AllProcessed)
             {
-                if (!result.TryGetValue(item.Id, out var outboxItemHandleResult))
+                if (outboxOptions.PartitionSettings.Enabled)
                 {
-                    // warn: not returned result?
-
-                    continue;
+                    listItems.ForEach(x => ((IHasStatus)x).Status = OutboxItemStatus.Completed);
                 }
 
-                if (outboxItemHandleResult.IsSuccess())
-                {
-                    processed.Add(item);
-                }
-                else if (item is IHasStatus hasStatus)
-                {
-                    Retry(hasStatus, outboxOptions.RetrySettings);
-                    retry.Add(item);
-                }
-                else
-                {
-                    break;
-                }
+                OutboxMetricCollector.IncProcessedCount(outboxName, listItems.Count);
+                await repository.SaveAsync(listItems, retried: [], ct).ConfigureAwait(false);
+
+                OutboxItemsProcessResult(listItems.Count, retried: 0);
             }
-
-            if (processed.Count > 0 || retry.Count > 0)
+            else
             {
-                OutboxMetricCollector.IncProcessedCount(outboxName, processed.Count);
-                OutboxMetricCollector.IncRetriedCount(outboxName, retry.Count);
-                await repository.SaveAsync(processed, retry, ct).ConfigureAwait(false);
-            }
+                var processed = new List<TOutboxItem>(outboxOptions.OutboxItemsLimit);
+                var retry = new List<TOutboxItem>();
 
-            OutboxItemsProcessResult(processed.Count, retry.Count);
+                foreach (var item in listItems)
+                {
+                    if (!result.ProcessedInfo.TryGetValue(item.Id, out var outboxItemHandleResult))
+                    {
+                        // warn: not returned result?
+
+                        continue;
+                    }
+
+                    if (outboxItemHandleResult.IsSuccess())
+                    {
+                        if (item is IHasStatus hasStatus)
+                        {
+                            hasStatus.Status = OutboxItemStatus.Completed;
+                        }
+
+                        processed.Add(item);
+                    }
+                    else if (item is IHasStatus hasStatus)
+                    {
+                        Retry(hasStatus, outboxOptions.RetrySettings);
+                        retry.Add(item);
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+
+                if (processed.Count > 0 || retry.Count > 0)
+                {
+                    OutboxMetricCollector.IncProcessedCount(outboxName, processed.Count);
+                    OutboxMetricCollector.IncRetriedCount(outboxName, retry.Count);
+                    await repository.SaveAsync(processed, retry, ct).ConfigureAwait(false);
+                }
+
+                OutboxItemsProcessResult(processed.Count, retry.Count);
+            }
         }
         catch (Exception e)
         {

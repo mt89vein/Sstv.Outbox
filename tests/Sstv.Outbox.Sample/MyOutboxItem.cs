@@ -63,7 +63,7 @@ public sealed class MyOutboxItemHandler : IOutboxItemBatchHandler<MyOutboxItem>
     /// <param name="options">Outbox options.</param>
     /// <param name="ct">Token for cancelling operation.</param>
     [SuppressMessage("Security", "CA5394:Do not use non-cryptographic randomizers.")]
-    public Task<IReadOnlyDictionary<Guid, OutboxItemHandleResult>> HandleAsync(
+    public Task<OutboxBatchResult> HandleAsync(
         IReadOnlyCollection<MyOutboxItem> items,
         OutboxOptions options,
         CancellationToken ct
@@ -80,6 +80,6 @@ public sealed class MyOutboxItemHandler : IOutboxItemBatchHandler<MyOutboxItem>
             result.Add(item.Id, (OutboxItemHandleResult)Random.Shared.Next(1, 3));
         }
 
-        return Task.FromResult<IReadOnlyDictionary<Guid, OutboxItemHandleResult>>(result);
+        return Task.FromResult(OutboxBatchResult.ProcessedPartially(result));
     }
 }

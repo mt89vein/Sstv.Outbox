@@ -5,7 +5,7 @@ namespace Sstv.Outbox.Sample;
 /// <summary>
 /// Outbox item.
 /// </summary>
-public sealed class StrictOutboxItem : IOutboxItem, IHasStatus
+public sealed class PartitionedOutboxItem : IOutboxItem, IHasStatus
 {
     /// <summary>
     /// Unique identifier.
@@ -51,9 +51,9 @@ public sealed class StrictOutboxItem : IOutboxItem, IHasStatus
 }
 
 /// <summary>
-/// Handler for StrictOutboxItem.
+/// Handler for PartitionedStrictOutboxItem.
 /// </summary>
-public sealed class StrictOutboxItemHandler : IOutboxItemHandler<StrictOutboxItem>
+public sealed class PartitionedOutboxItemHandler : IOutboxItemHandler<PartitionedOutboxItem>
 {
     /// <summary>
     /// Processes outbox item.
@@ -62,14 +62,14 @@ public sealed class StrictOutboxItemHandler : IOutboxItemHandler<StrictOutboxIte
     /// <param name="options">Outbox options.</param>
     /// <param name="ct">Token for cancelling operation.</param>
     public Task<OutboxItemHandleResult> HandleAsync(
-        StrictOutboxItem item,
+        PartitionedOutboxItem item,
         OutboxOptions options,
         CancellationToken ct = default
     )
     {
         ArgumentNullException.ThrowIfNull(item);
 
-        Console.WriteLine("StrictOutboxItem Handled {0}", item.Id.ToString());
+        Console.WriteLine("PartitionedStrictOutboxItem Handled {0}", item.Id.ToString());
 
         return Task.FromResult(OutboxItemHandleResult.Ok);
     }
