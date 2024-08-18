@@ -3,6 +3,7 @@
     <PropertyGroup>
       <TargetFramework>net8.0</TargetFramework>
       <PackageId>Sstv.Outbox</PackageId>
+      <Version>2.0.0</Version>
       <Description>.NET Library that implements Transactional Outbox pattern.</Description>
       <PackageReadmeFile>readme.md</PackageReadmeFile>
       <GenerateDocumentationFile>true</GenerateDocumentationFile>
