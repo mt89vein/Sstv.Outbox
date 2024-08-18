@@ -184,25 +184,17 @@ That's all. Configuration completed. On application start background worker must
 
 ### Features
 
-[x] Supports multiple tables
-
-[x] WorkerTypes extensibility
-
-[x] OutboxItemHandler extensibility (Kafka, HTTP call etc)
-
-[x] Single or Batched handler
-
-[x] Strict ordering / competing workers
-
-[x] Postres implementation is out of the box. You can provide implementation for other databases
-
-[x] Priority processing supported
-
-[x] Metrics collected
-
-[x] Maintenance API
-
-[x] Distributed tracing enabled (in Sstv.Outbox.Kafka lib)
+- [x] Supports multiple tables
+- [x] WorkerTypes extensibility
+- [x] OutboxItemHandler extensibility (Kafka, HTTP call etc)
+- [x] Single or Batched handler
+- [x] Strict ordering / competing workers
+- [x] Postres implementation is out of the box. You can provide implementation for other databases
+- [x] Priority processing supported
+- [x] Metrics are collected (OpenTelemetry)
+- [x] Maintenance API
+- [x] Distributed tracing enabled in w3c format (in Sstv.Outbox.Kafka lib)
+- [x] Autopartitioning outbox tables when partitioning enabled
 
 ### Metrics
 
