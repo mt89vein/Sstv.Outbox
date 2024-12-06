@@ -1,4 +1,4 @@
-using UUIDNext.Generator;
+using UUIDNext.Tools;
 
 namespace Sstv.Outbox.Features.Partitions;
 
@@ -8,9 +8,9 @@ namespace Sstv.Outbox.Features.Partitions;
 public sealed record PartitionSettings
 {
     /// <summary>
-    /// Uuid v7 generator for timestamp.
+    /// Uuid by date generator.
     /// </summary>
-    internal TimestampUuidV7Generator UuidV7Generator { get; } = new();
+    internal Func<DateTime, Guid> GenerateUuidForDate { get; } = date => UuidToolkit.CreateUuidV7FromSpecificDate(date);
 
     /// <summary>
     /// Enabled or not.
@@ -73,14 +73,6 @@ public sealed record PartitionSettings
         return new DateTimeOffset(dt.Year, dt.Month, dt.Day, 23, 59, 59, 999, TimeSpan.Zero);
     }
 };
-
-internal sealed class TimestampUuidV7Generator : UuidV7Generator
-{
-    public Guid ForDate(DateTime date)
-    {
-        return New(date);
-    }
-}
 
 /// <summary>
 /// Partition.

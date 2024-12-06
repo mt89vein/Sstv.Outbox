@@ -10,17 +10,6 @@ namespace Sstv.Outbox.Kafka;
 public sealed class OutboxKafkaHandler<TOutboxItem> : IOutboxItemHandler<TOutboxItem>
     where TOutboxItem : class, IKafkaOutboxItem
 {
-    // private readonly IProducer<byte[]?, byte[]?> _producer;
-    //
-    // /// <summary>
-    // /// Creates new instance of <see cref="OutboxKafkaHandler{TOutboxItem}"/>.
-    // /// </summary>
-    // /// <param name="producer">Producer.</param>
-    // public OutboxKafkaHandler(IProducer<byte[]?, byte[]?> producer)
-    // {
-    //     _producer = producer;
-    // }
-
     /// <summary>
     /// Processes outbox item.
     /// </summary>

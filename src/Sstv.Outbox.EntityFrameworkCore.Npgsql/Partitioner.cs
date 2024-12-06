@@ -65,8 +65,8 @@ public sealed partial class Partitioner<TDbContext, TOutboxItem> : IPartitioner<
 
             foreach (var partition in _options.PartitionSettings.GetPartitions(m.TableName, DateTimeOffset.UtcNow))
             {
-                var from = _options.PartitionSettings.UuidV7Generator.ForDate(partition.DateFrom.UtcDateTime);
-                var to = _options.PartitionSettings.UuidV7Generator.ForDate(partition.DateTo.UtcDateTime);
+                var from = _options.PartitionSettings.GenerateUuidForDate(partition.DateFrom.UtcDateTime);
+                var to = _options.PartitionSettings.GenerateUuidForDate(partition.DateTo.UtcDateTime);
 
                 var sql = $"""
                            CREATE TABLE IF NOT EXISTS {m.SchemaName}.{partition.PartitionTableName} PARTITION OF {m.QualifiedTableName} FOR values
