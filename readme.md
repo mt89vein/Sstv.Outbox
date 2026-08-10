@@ -50,9 +50,9 @@ dotnet add Sstv.Outbox.Kafka
 or
 ```xml
 <ItemGroup>
-    <PackageReference Include="Sstv.Outbox.EntityFrameworkCore.Npgsql" Version="3.0.0" />
-    <PackageReference Include="Sstv.Outbox.Npgsql" Version="3.0.0" />
-    <PackageReference Include="Sstv.Outbox.Kafka" Version="3.0.0" />
+    <PackageReference Include="Sstv.Outbox.EntityFrameworkCore.Npgsql" Version="4.0.0" />
+    <PackageReference Include="Sstv.Outbox.Npgsql" Version="4.0.0" />
+    <PackageReference Include="Sstv.Outbox.Kafka" Version="4.0.0" />
 </ItemGroup>
 ```
 
