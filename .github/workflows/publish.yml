@@ -34,12 +34,13 @@ jobs:
       # Create the NuGet package in the folder from the environment variable NuGetDirectory
       - run: dotnet pack --configuration Release --output ${{ env.NuGetDirectory }}
 
-      # Publish the NuGet package as an artifact, so they can be used in the following jobs
-      - uses: actions/download-artifact@v8
+      # Upload the NuGet package as an artifact, so they can be used in the following jobs
+      - uses: actions/upload-artifact@v8
         with:
+          name: nuget
+          path: ${{ env.NuGetDirectory }}/*.nupkg
           if-no-files-found: error
           retention-days: 7
-          path: ${{ env.NuGetDirectory }}/*.nupkg
 
   validate_nuget:
     runs-on: ubuntu-latest
@@ -52,6 +53,7 @@ jobs:
       # Download the NuGet package created in the previous job
       - uses: actions/download-artifact@v8
         with:
+          name: nuget
           path: ${{ env.NuGetDirectory }}
 
   run_test:
@@ -87,6 +89,7 @@ jobs:
       # Download the NuGet package created in the previous job
       - uses: actions/download-artifact@v8
         with:
+          name: nuget
           path: ${{ env.NuGetDirectory }}
 
       # Install the .NET SDK indicated in the global.json file
