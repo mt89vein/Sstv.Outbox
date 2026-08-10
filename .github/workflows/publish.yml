@@ -37,7 +37,6 @@ jobs:
       # Publish the NuGet package as an artifact, so they can be used in the following jobs
       - uses: actions/download-artifact@v8.0.1
         with:
-          name: nuget
           if-no-files-found: error
           retention-days: 7
           path: ${{ env.NuGetDirectory }}/*.nupkg
@@ -48,12 +47,11 @@ jobs:
     steps:
       # Install the .NET SDK indicated in the global.json file
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6.0.0
+        uses: actions/setup-dotnet@v6
 
       # Download the NuGet package created in the previous job
-      - uses: actions/download-artifact@v8.0.1
+      - uses: actions/download-artifact@v8
         with:
-          name: nuget
           path: ${{ env.NuGetDirectory }}
 
   run_test:
@@ -67,7 +65,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6.0.0
+        uses: actions/setup-dotnet@v6
       - name: Run tests
         run: dotnet test --configuration Release /p:CollectCoverage=true /p:CoverletOutputFormat=lcov
       - name: Publish coverage report to coveralls.io
@@ -87,14 +85,13 @@ jobs:
     needs: [validate_nuget, run_test]
     steps:
       # Download the NuGet package created in the previous job
-      - uses: actions/download-artifact@v8.0.1
+      - uses: actions/download-artifact@v8
         with:
-          name: nuget
           path: ${{ env.NuGetDirectory }}
 
       # Install the .NET SDK indicated in the global.json file
       - name: Setup .NET Core
-        uses: actions/setup-dotnet@v6.0.0
+        uses: actions/setup-dotnet@v6
 
       - name: NuGet login (OIDC → temp API key)
         uses: NuGet/login@v1
