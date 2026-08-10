@@ -100,7 +100,7 @@ public sealed class CompetingOutboxRepository<TOutboxItem> : IOutboxRepository<T
                            WHERE {m.Id} in (select * from unnest(@{ids}));
                            """;
 
-                await using var cmd = _connection!.CreateCommand();
+                await using var cmd = _connection.CreateCommand();
                 cmd.CommandText = sql;
                 cmd.Parameters.Add(new NpgsqlParameter<Guid[]>(ids, completed
                     .Select(o => o.Id)
@@ -117,7 +117,7 @@ public sealed class CompetingOutboxRepository<TOutboxItem> : IOutboxRepository<T
                            WHERE {m.Id} in (select * from unnest(@{ids}));
                            """;
 
-                await using var cmd = _connection!.CreateCommand();
+                await using var cmd = _connection.CreateCommand();
                 cmd.CommandText = sql;
                 cmd.Parameters.Add(new NpgsqlParameter<Guid[]>(ids, completed
                     .Select(o => o.Id)
@@ -138,7 +138,7 @@ public sealed class CompetingOutboxRepository<TOutboxItem> : IOutboxRepository<T
                        WHERE {m.QualifiedTableName}."{m.Id}" = data."{m.Id}";
                        """;
 
-            await using var cmd = _connection!.CreateCommand();
+            await using var cmd = _connection.CreateCommand();
             cmd.CommandText = sql;
             cmd.Parameters.Add(new NpgsqlParameter<Guid[]>(m.Id, retried.Select(e => e.Id).ToArray()));
             cmd.Parameters.Add(new NpgsqlParameter<int[]>(m.Status, retried.Select(e => (int)((IHasStatus)e).Status).ToArray()));

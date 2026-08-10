@@ -35,7 +35,7 @@ public sealed partial class NpgsqlOutboxWorkerTests
         await worker.ProcessAsync<KafkaNpgsqlOutboxItemWithPriority>(options, CancellationToken.None);
 
         // assert
-        await Assert.MultipleAsync(async () =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(await GetCountOfOutboxItems(options), Is.Zero,
                 $"Table {options.GetDbMapping().QualifiedTableName} should be empty after act");
@@ -45,7 +45,7 @@ public sealed partial class NpgsqlOutboxWorkerTests
 
             Assert.That(spy.PublishedIds, Is.EqualTo(expectedProcessingOrder).AsCollection,
                 "Published ids not matched with expected ids");
-        });
+        }
 
         static async Task<Guid[]> SeedAsync(WebAppFactory factory, int limit)
         {

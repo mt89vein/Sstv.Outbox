@@ -11,11 +11,9 @@ namespace Sstv.Outbox;
 internal sealed partial class BatchStrictOrderingOutboxWorker : IOutboxWorker
 {
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly TimeProvider _timeProvider;
     private readonly ILogger<BatchStrictOrderingOutboxWorker> _logger;
 
     public BatchStrictOrderingOutboxWorker(
-        TimeProvider timeProvider,
         IServiceScopeFactory scopeFactory,
         ILogger<BatchStrictOrderingOutboxWorker>? logger = null
     )
@@ -23,7 +21,6 @@ internal sealed partial class BatchStrictOrderingOutboxWorker : IOutboxWorker
         ArgumentNullException.ThrowIfNull(scopeFactory);
 
         _scopeFactory = scopeFactory;
-        _timeProvider = timeProvider;
         _logger = logger ?? new NullLogger<BatchStrictOrderingOutboxWorker>();
     }
 
@@ -39,8 +36,11 @@ internal sealed partial class BatchStrictOrderingOutboxWorker : IOutboxWorker
         {
             var outboxName = outboxOptions.GetOutboxName();
             await using var scope = _scopeFactory.CreateAsyncScope();
-            await using var repository = scope.ServiceProvider.GetRequiredKeyedService<IOutboxRepository<TOutboxItem>>(outboxOptions.WorkerType);
-            var items = await repository.LockAndReturnItemsBatchAsync(ct).ConfigureAwait(false);
+            await using var repository =
+                scope.ServiceProvider.GetRequiredKeyedService<IOutboxRepository<TOutboxItem>>(outboxOptions.WorkerType);
+            var items = await repository
+                .LockAndReturnItemsBatchAsync(ct)
+                .ConfigureAwait(false);
 
             if (items.TryGetNonEnumeratedCount(out var count) && count == 0)
             {
@@ -64,7 +64,9 @@ internal sealed partial class BatchStrictOrderingOutboxWorker : IOutboxWorker
             }
 
             var sw = Stopwatch.StartNew();
-            var result = await handler.HandleAsync(listItems.AsReadOnly(), outboxOptions, ct).ConfigureAwait(false);
+            var result = await handler
+                .HandleAsync(listItems.AsReadOnly(), outboxOptions, ct)
+                .ConfigureAwait(false);
             sw.Stop();
             OutboxMetricCollector.RecordOutboxItemHandlerProcessTime(sw.ElapsedMilliseconds, outboxName, batched: true);
 
@@ -76,7 +78,9 @@ internal sealed partial class BatchStrictOrderingOutboxWorker : IOutboxWorker
                 }
 
                 OutboxMetricCollector.IncProcessedCount(outboxName, listItems.Count);
-                await repository.SaveAsync(listItems, retried: [], ct).ConfigureAwait(false);
+                await repository
+                    .SaveAsync(listItems, retried: [], ct)
+                    .ConfigureAwait(false);
 
                 OutboxItemsProcessResult(listItems.Count);
             }
@@ -113,7 +117,9 @@ internal sealed partial class BatchStrictOrderingOutboxWorker : IOutboxWorker
                 if (processed.Count > 0)
                 {
                     OutboxMetricCollector.IncProcessedCount(outboxName, processed.Count);
-                    await repository.SaveAsync(processed, Array.Empty<TOutboxItem>(), ct).ConfigureAwait(false);
+                    await repository
+                        .SaveAsync(processed, Array.Empty<TOutboxItem>(), ct)
+                        .ConfigureAwait(false);
                 }
 
                 OutboxItemsProcessResult(processed.Count);

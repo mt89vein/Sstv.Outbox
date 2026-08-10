@@ -1,29 +1,27 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageId>Sstv.Outbox.EntityFrameworkCore.Npgsql</PackageId>
+    <Version>4.0.0</Version>
+    <Description>.NET Library that implements Transactional Outbox pattern with EntityFrameworkCore.</Description>
+    <PackageReadmeFile>readme.md</PackageReadmeFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
 
-    <PropertyGroup>
-      <TargetFramework>net9.0</TargetFramework>
-      <PackageId>Sstv.Outbox.EntityFrameworkCore.Npgsql</PackageId>
-      <Version>3.0.0</Version>
-      <Description>.NET Library that implements Transactional Outbox pattern with EntityFrameworkCore.</Description>
-      <PackageReadmeFile>readme.md</PackageReadmeFile>
-      <GenerateDocumentationFile>true</GenerateDocumentationFile>
-      <IsPackable>true</IsPackable>
-    </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Sstv.Outbox.IntegrationTests"/>
+  </ItemGroup>
 
-    <ItemGroup>
-      <InternalsVisibleTo Include="Sstv.Outbox.IntegrationTests" />
-    </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"/>
+  </ItemGroup>
 
-    <ItemGroup>
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.1" />
-    </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Sstv.Outbox\Sstv.Outbox.csproj"/>
+  </ItemGroup>
 
-    <ItemGroup>
-      <ProjectReference Include="..\Sstv.Outbox\Sstv.Outbox.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
-        <None Include="./../../readme.md" Pack="true" PackagePath="\" />
-    </ItemGroup>
+  <ItemGroup>
+    <None Include="./../../readme.md" Pack="true" PackagePath="\"/>
+  </ItemGroup>
 
 </Project>

@@ -43,7 +43,7 @@ public sealed class OutboxKafkaHandler<TOutboxItem> : IOutboxItemHandler<TOutbox
         {
             Key = outboxItem.Key,
             Value = outboxItem.Value,
-            Headers = headers!,
+            Headers = headers,
             Timestamp = outboxItem.Timestamp.HasValue
                 ? new Timestamp(outboxItem.Timestamp.Value)
                 : Timestamp.Default
