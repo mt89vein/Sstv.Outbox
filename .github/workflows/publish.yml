@@ -35,7 +35,7 @@ jobs:
       - run: dotnet pack --configuration Release --output ${{ env.NuGetDirectory }}
 
       # Publish the NuGet package as an artifact, so they can be used in the following jobs
-      - uses: actions/download-artifact@v8.0.1
+      - uses: actions/download-artifact@v8
         with:
           if-no-files-found: error
           retention-days: 7
@@ -63,7 +63,7 @@ jobs:
         volumes:
           - /var/run/docker.sock:/var/run/docker.sock:ro
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
       - name: Run tests
