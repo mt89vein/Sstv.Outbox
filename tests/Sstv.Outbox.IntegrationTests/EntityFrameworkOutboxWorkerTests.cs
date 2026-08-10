@@ -54,14 +54,14 @@ public sealed partial class EntityFrameworkOutboxWorkerTests
         await worker.ProcessAsync<KafkaEfOutboxItem>(options, CancellationToken.None);
 
         // assert
-        await Assert.MultipleAsync(async () =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(await GetCountOfOutboxItems(factory), Is.Zero,
                 $"Table {options.GetDbMapping().QualifiedTableName} should be empty after act");
 
             Assert.That(spy.PublishedCount, Is.EqualTo(options.OutboxItemsLimit),
                 "The count of published messages doesn't match with expected");
-        });
+        }
     }
 
     /// <summary>
@@ -93,14 +93,14 @@ public sealed partial class EntityFrameworkOutboxWorkerTests
         );
 
         // assert
-        await Assert.MultipleAsync(async () =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(await GetCountOfOutboxItems(factory), Is.EqualTo(additionalItemsInTable),
                 "Expected to be one message in the table after act");
 
             Assert.That(spy.PublishedCount, Is.EqualTo(expectedPublishedMessagesCount),
                 "The count of published messages doesn't match with expected");
-        });
+        }
     }
 
     /// <summary>
@@ -133,14 +133,14 @@ public sealed partial class EntityFrameworkOutboxWorkerTests
         );
 
         // assert
-        await Assert.MultipleAsync(async () =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(await GetCountOfOutboxItems(factory), Is.EqualTo(additionalItemsInTable),
                 "The count of expected messages in the table after act not matched");
 
             Assert.That(spy.PublishedCount, Is.EqualTo(expectedPublishedMessagesCount),
                 "The count of published messages doesn't match with expected");
-        });
+        }
     }
 
     /// <summary>

@@ -34,7 +34,7 @@ public sealed partial class EntityFrameworkOutboxWorkerTests
         await worker.ProcessAsync<KafkaEfOutboxItemWithPriority>(options, CancellationToken.None);
 
         // assert
-        await Assert.MultipleAsync(async () =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(await GetCountOfOutboxItemsWithPriority(factory), Is.Zero,
                 $"Table {options.GetDbMapping().QualifiedTableName} should be empty after act");
@@ -44,7 +44,7 @@ public sealed partial class EntityFrameworkOutboxWorkerTests
 
             Assert.That(spy.PublishedIds, Is.EqualTo(expectedProcessingOrder).AsCollection,
                 "Published ids not matched with expected ids");
-        });
+        }
 
         return;
 

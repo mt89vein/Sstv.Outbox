@@ -10,8 +10,7 @@ using Testcontainers.PostgreSql;
 public static class SetupContainer
 #pragma warning restore CA1050
 {
-    private static readonly PostgreSqlContainer Container = new PostgreSqlBuilder()
-        .WithImage("postgres:16")
+    private static readonly PostgreSqlContainer Container = new PostgreSqlBuilder("postgres:18")
         .WithDatabase("outbox_integration_test")
         .WithUsername("postgres")
         .WithPassword("postgres")
